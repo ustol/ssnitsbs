@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Network, Building2, Users2, History } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
