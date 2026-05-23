@@ -5,21 +5,17 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft } from 'lucide-react'
 import { usePartnership, useCreatePartnership, useUpdatePartnership } from '@/hooks/usePartnerships'
-import { useStatusLookup } from '@/hooks/useSettings'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
-import type { StatusLookup } from '@/types/database'
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
   organization: z.string().optional(),
   description: z.string().optional(),
-  status_id: z.string().optional(),
   proposed_value: z.coerce.number().optional(),
   start_date: z.string().optional(),
 })
@@ -31,7 +27,6 @@ export function PartnershipForm() {
   const isEdit = !!id
 
   const { data: partnership, isLoading: loading } = usePartnership(id ?? '')
-  const { data: statuses = [] } = useStatusLookup()
   const createMutation = useCreatePartnership()
   const updateMutation = useUpdatePartnership()
 
@@ -45,7 +40,6 @@ export function PartnershipForm() {
         title: p.title ?? '',
         organization: p.organization ?? '',
         description: p.description ?? '',
-        status_id: p.status_id ?? '',
         proposed_value: p.proposed_value ?? undefined,
         start_date: p.start_date ?? '',
       })
@@ -57,7 +51,6 @@ export function PartnershipForm() {
       ...values,
       proposed_value: values.proposed_value ?? null,
       start_date: values.start_date || null,
-      status_id: values.status_id || null,
     }
 
     if (isEdit) {
@@ -105,32 +98,13 @@ export function PartnershipForm() {
                 </FormItem>
               )} />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="status_id" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {(statuses as StatusLookup[]).map(s => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="start_date" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date</FormLabel>
-                    <FormControl><Input type="date" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
+              <FormField control={form.control} name="start_date" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Date</FormLabel>
+                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
               <FormField control={form.control} name="proposed_value" render={({ field }) => (
                 <FormItem>

@@ -6,7 +6,6 @@ import { z } from 'zod'
 import { ArrowLeft } from 'lucide-react'
 import { useInternalMeeting, useCreateInternalMeeting, useUpdateInternalMeeting } from '@/hooks/useMeetings'
 import { usePartnerships } from '@/hooks/usePartnerships'
-import { useStatusLookup } from '@/hooks/useSettings'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -14,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
-import type { PartnershipWithRelations, StatusLookup } from '@/types/database'
+import type { PartnershipWithRelations } from '@/types/database'
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -24,7 +23,6 @@ const schema = z.object({
   agenda: z.string().optional(),
   minutes: z.string().optional(),
   action_points: z.string().optional(),
-  status_id: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -35,7 +33,6 @@ export function InternalMeetingForm() {
 
   const { data: meeting, isLoading } = useInternalMeeting(id ?? '')
   const { data: partnerships = [] } = usePartnerships()
-  const { data: statuses = [] } = useStatusLookup()
   const createMutation = useCreateInternalMeeting()
   const updateMutation = useUpdateInternalMeeting()
 
@@ -52,7 +49,6 @@ export function InternalMeetingForm() {
         agenda: (m.agenda as string) ?? '',
         minutes: (m.minutes as string) ?? '',
         action_points: (m.action_points as string) ?? '',
-        status_id: (m.status_id as string) ?? '',
       })
     }
   }, [meeting, form])
@@ -61,7 +57,6 @@ export function InternalMeetingForm() {
     const payload = {
       ...values,
       partnership_id: values.partnership_id || null,
-      status_id: values.status_id || null,
       meeting_date: values.meeting_date || null,
     }
     if (isEdit) {
@@ -93,37 +88,20 @@ export function InternalMeetingForm() {
                 </FormItem>
               )} />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="partnership_id" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Partnership</FormLabel>
-                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select partnership" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {(partnerships as PartnershipWithRelations[]).map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="status_id" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {(statuses as StatusLookup[]).map(s => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
+              <FormField control={form.control} name="partnership_id" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Partnership</FormLabel>
+                  <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select partnership" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {(partnerships as PartnershipWithRelations[]).map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="meeting_date" render={({ field }) => (
