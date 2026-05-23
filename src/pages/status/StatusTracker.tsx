@@ -22,6 +22,8 @@ const TRACKER_STATUS_CONFIGS = [
 
 const TRACKER_STATUSES = TRACKER_STATUS_CONFIGS.map(s => s.name)
 
+const NONE = '__none__'
+
 function StatusSelect({ currentId, statuses, onSave }: {
   currentId: string | null
   statuses: StatusLookup[]
@@ -32,19 +34,19 @@ function StatusSelect({ currentId, statuses, onSave }: {
   async function handleChange(val: string) {
     setSaving(true)
     try {
-      await onSave(val || null)
+      await onSave(val === NONE ? null : val)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Select value={currentId ?? ''} onValueChange={handleChange} disabled={saving}>
+    <Select value={currentId ?? NONE} onValueChange={handleChange} disabled={saving}>
       <SelectTrigger className="h-7 text-xs w-[210px]">
         <SelectValue placeholder="Assign status…" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="">— None —</SelectItem>
+        <SelectItem value={NONE}>— None —</SelectItem>
         {statuses.map(s => (
           <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
         ))}
