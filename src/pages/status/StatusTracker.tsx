@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { Network, Building2, Users2, History } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePartnerships, useUpdatePartnership } from '@/hooks/usePartnerships'
@@ -13,18 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { supabase } from '@/lib/supabase'
 import type { StatusLookup, StatusHistoryWithRelations } from '@/types/database'
 
-const TRACKER_STATUS_CONFIGS = [
-  { name: 'Initial Letter Sent',          color: '#6366f1', sort_order: 10 },
-  { name: 'Initial Meeting',              color: '#0ea5e9', sort_order: 20 },
-  { name: 'Follow-Up Meeting',            color: '#f59e0b', sort_order: 30 },
-  { name: 'Request for more Information', color: '#8b5cf6', sort_order: 40 },
-  { name: 'Other',                        color: '#6b7280', sort_order: 50 },
-]
-
-const TRACKER_STATUSES = TRACKER_STATUS_CONFIGS.map(s => s.name)
 const NONE = '__none__'
 
 type EntityType = 'partnership' | 'external_meeting' | 'internal_meeting'
@@ -171,23 +160,11 @@ function TypeBadge({ type }: { type: EntityType }) {
 
 export function StatusTracker() {
   const { user } = useAuth()
-  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const q = search.toLowerCase()
 
-  const { data: allStatuses = [], isLoading: loadingStatuses } = useStatusLookup()
-  const statuses = (allStatuses as StatusLookup[]).filter(s => TRACKER_STATUSES.includes(s.name))
-
-  useEffect(() => {
-    if (loadingStatuses || statuses.length > 0) return
-    const existingNames = new Set((allStatuses as StatusLookup[]).map(s => s.name))
-    const toInsert = TRACKER_STATUS_CONFIGS.filter(s => !existingNames.has(s.name))
-    if (toInsert.length === 0) return
-    supabase.from('status_lookup').insert(toInsert).then(() => {
-      qc.invalidateQueries({ queryKey: ['status-lookup'] })
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingStatuses])
+  const { data: allStatuses = [] } = useStatusLookup()
+  const statuses = allStatuses as StatusLookup[]
 
   const { data: partnerships = [], isLoading: loadingP } = usePartnerships()
   const updatePartnership = useUpdatePartnership()
