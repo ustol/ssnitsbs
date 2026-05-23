@@ -182,6 +182,22 @@ export interface MeetingAttachment {
   created_at: string
 }
 
+export interface StatusHistory {
+  id: string
+  entity_type: 'partnership' | 'external_meeting' | 'internal_meeting'
+  entity_id: string
+  from_status_id: string | null
+  to_status_id: string | null
+  status_date: string | null
+  changed_by: string | null
+  created_at: string
+}
+
+export interface StatusHistoryWithRelations extends StatusHistory {
+  from_status: Pick<StatusLookup, 'id' | 'name' | 'color'> | null
+  to_status: Pick<StatusLookup, 'id' | 'name' | 'color'> | null
+}
+
 export interface AuditLog {
   id: string
   user_id: string | null
@@ -268,6 +284,11 @@ export interface Database {
       audit_log: {
         Row: AuditLog
         Insert: Omit<AuditLog, 'id' | 'created_at'>
+        Update: never
+      }
+      status_history: {
+        Row: StatusHistory
+        Insert: Omit<StatusHistory, 'id' | 'created_at'>
         Update: never
       }
     }
