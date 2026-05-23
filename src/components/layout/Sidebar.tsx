@@ -1,8 +1,10 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2, MessageSquare,
-  BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut, type LucideIcon,
+  BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
+  Activity, ChevronDown, type LucideIcon,
 } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { getInitials } from '@/lib/utils'
@@ -61,6 +63,56 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <li className="px-3.5 pt-3 pb-1 text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-white/28 select-none">
       {children}
+    </li>
+  )
+}
+
+function SubLink({ to, label, active }: { to: string; label: string; active: boolean }) {
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'flex items-center px-3 py-[0.28rem] rounded-md ml-6 mr-1.5 text-[0.775rem] transition-colors duration-100',
+        active
+          ? 'bg-white/[0.08] text-white/90 font-medium'
+          : 'text-white/50 hover:bg-white/[0.04] hover:text-white/75',
+      )}
+    >
+      {label}
+    </Link>
+  )
+}
+
+function StatusTrackerGroup() {
+  const location = useLocation()
+  const onPage = location.pathname === '/status-tracker'
+  const tab = new URLSearchParams(location.search).get('tab') ?? 'partnerships'
+  const [open, setOpen] = useState(onPage)
+
+  useEffect(() => {
+    if (onPage) setOpen(true)
+  }, [onPage])
+
+  return (
+    <li>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'flex items-center gap-2 px-3.5 py-[0.35rem] rounded-md mx-1.5 text-[0.8125rem] transition-colors duration-100 w-[calc(100%-12px)]',
+          onPage ? 'text-white/88' : 'text-white/65 hover:bg-white/[0.04] hover:text-white/88',
+        )}
+      >
+        <Activity size={14} className={cn('shrink-0', onPage ? 'text-brand' : 'text-white/28')} />
+        <span className="truncate flex-1 text-left">Status Tracker</span>
+        <ChevronDown size={11} className={cn('shrink-0 text-white/28 transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="mt-0.5 space-y-px">
+          <SubLink to="/status-tracker" label="Partnerships" active={onPage && tab === 'partnerships'} />
+          <SubLink to="/status-tracker?tab=external" label="External Meetings" active={onPage && tab === 'external'} />
+          <SubLink to="/status-tracker?tab=internal" label="Internal Meetings" active={onPage && tab === 'internal'} />
+        </div>
+      )}
     </li>
   )
 }
@@ -138,6 +190,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/partnerships" label="Partnerships" icon={Network} />
             <SidebarLink to="/meetings/external" label="External Meetings" icon={Building2} />
             <SidebarLink to="/meetings/internal" label="Internal Meetings" icon={Users2} />
+            <StatusTrackerGroup />
 
             <SectionLabel>Reporting</SectionLabel>
             <SidebarLink to="/feedback/ddg" label="DDG Feedback" icon={MessageSquare} badge={pendingDDG} />

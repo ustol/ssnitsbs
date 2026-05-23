@@ -22,6 +22,7 @@ import { Reports } from '@/pages/reports/Reports'
 import { Settings } from '@/pages/settings/Settings'
 import { UserList } from '@/pages/users/UserList'
 import { Profile } from '@/pages/users/Profile'
+import { StatusTracker } from '@/pages/status/StatusTracker'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -70,6 +71,8 @@ export default function App() {
           <Route path="feedback/ddg/:id/edit" element={<DDGFeedbackForm />} />
           {/* Documents */}
           <Route path="documents" element={<DocumentLibrary />} />
+          {/* Status Tracker */}
+          <Route path="status-tracker" element={<StatusTracker />} />
           {/* Reports */}
           <Route path="reports" element={<Reports />} />
           {/* Settings */}
