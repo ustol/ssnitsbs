@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Download, Loader2 } from 'lucide-react'
+import { ChevronLeft, Download, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { generatePdf } from '@/lib/pdf'
+import { useAISummary } from '@/hooks/useAISummary'
 
 interface ReportPageProps {
   title: string
@@ -90,6 +91,75 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
     <h2 className="text-base font-semibold text-zinc-800 border-b pb-2">{children}</h2>
   )
 }
+
+// ─── AI Summary Card ──────────────────────────────────────────────────────────
+
+export function AISummaryCard({ prompt }: { prompt: string | null }) {
+  const { summary, isGenerating, error, generate, reset } = useAISummary()
+
+  if (prompt === null) return null
+
+  return (
+    <div className="rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50/60 to-white p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-brand flex items-center justify-center shrink-0">
+            <Sparkles size={12} className="text-white" />
+          </div>
+          <span className="text-sm font-semibold text-zinc-800">AI Executive Summary</span>
+        </div>
+        {summary && !isGenerating && (
+          <div data-html2canvas-ignore="true">
+            <button
+              onClick={() => { reset(); setTimeout(() => generate(prompt), 50) }}
+              className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+            >
+              Regenerate
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!summary && !isGenerating && !error && (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-zinc-500">
+            Generate an AI-written paragraph that speaks directly to the figures in this report.
+          </p>
+          <div data-html2canvas-ignore="true">
+            <Button size="sm" variant="outline" onClick={() => generate(prompt)} className="shrink-0 gap-1.5 text-xs">
+              <Sparkles size={12} />
+              Generate Summary
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isGenerating && (
+        <div className="flex items-center gap-2 py-1">
+          <Loader2 size={14} className="animate-spin text-brand" />
+          <span className="text-sm text-zinc-500">Analysing report data…</span>
+        </div>
+      )}
+
+      {error && !isGenerating && (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-red-500">{error}</p>
+          <div data-html2canvas-ignore="true">
+            <Button size="sm" variant="outline" onClick={() => generate(prompt)} className="shrink-0 text-xs">
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {summary && !isGenerating && (
+        <p className="text-sm text-zinc-700 leading-relaxed">{summary}</p>
+      )}
+    </div>
+  )
+}
+
+// ─── Report Table ─────────────────────────────────────────────────────────────
 
 export function ReportTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
   return (

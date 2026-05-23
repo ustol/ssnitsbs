@@ -3,7 +3,7 @@ import {
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area,
 } from 'recharts'
 import { useExecutiveReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316']
@@ -12,6 +12,31 @@ function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return n.toString()
+}
+
+type ExecData = NonNullable<ReturnType<typeof useExecutiveReport>['data']>
+
+function buildSummaryPrompt(data: ExecData): string {
+  const topStatus = [...data.byStatus].sort((a, b) => b.value - a.value)[0]
+  const totalExt = data.rows.reduce((s, p) => s + p.extCount, 0)
+  const totalInt = data.rows.reduce((s, p) => s + p.intCount, 0)
+  const totalMeetings = totalExt + totalInt
+  const noMeetings = data.rows.filter(p => p.totalMeetings === 0).length
+  const topPartnership = data.topByMeetings[0]
+  const statusBreakdown = data.byStatus.map(s => `${s.name}: ${s.value}`).join(' | ')
+
+  return `Write a 4-sentence executive summary for an Executive Overview Report on the SSNIT Strategic Business Support System partnership pipeline. Cite the exact figures in your sentences. No preambles, no filler phrases.
+
+Key figures:
+- Total partnerships in pipeline: ${data.rows.length}
+- Total proposed membership value: ${fmt(data.totalProposed)} members
+- Best-case projection (${data.bestPct}%): ${fmt(Math.round(data.totalProposed * data.bestPct / 100))} members
+- Worst-case projection (${data.worstPct}%): ${fmt(Math.round(data.totalProposed * data.worstPct / 100))} members
+- Status breakdown: ${statusBreakdown || 'No status data'}
+- Dominant status: ${topStatus?.name ?? 'N/A'} (${topStatus?.value ?? 0} partnerships)
+- Total meetings: ${totalMeetings} (${totalExt} external, ${totalInt} internal)
+- Most active partnership by meeting count: ${topPartnership?.name ?? 'N/A'} (${(topPartnership?.ext ?? 0) + (topPartnership?.int ?? 0)} meetings)
+- Partnerships with zero meetings: ${noMeetings}`
 }
 
 export function ExecutiveOverviewReport() {
@@ -34,6 +59,8 @@ export function ExecutiveOverviewReport() {
             { label: `Best Case (${data.bestPct}%)`, value: fmt(Math.round(data.totalProposed * data.bestPct / 100)), color: 'text-green-600' },
             { label: `Worst Case (${data.worstPct}%)`, value: fmt(Math.round(data.totalProposed * data.worstPct / 100)), color: 'text-amber-600' },
           ]} />
+
+          <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           <div className="grid grid-cols-2 gap-6">
             {/* Pipeline projections bar */}

@@ -3,8 +3,30 @@ import {
   Cell, AreaChart, Area,
 } from 'recharts'
 import { useStatusTimeReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
+
+type StatusTimeData = NonNullable<ReturnType<typeof useStatusTimeReport>['data']>
+
+function buildSummaryPrompt(data: StatusTimeData): string | null {
+  if (data.totalChanges === 0) return null
+  const slowest = data.avgByStatus[0]
+  const fastest = data.avgByStatus[data.avgByStatus.length - 1]
+  const topTransition = data.topTransitions[0]
+  const stalled = data.avgByStatus.filter(s => s.avgDays > 90).length
+  const fastMoving = data.avgByStatus.filter(s => s.avgDays <= 7).length
+
+  return `Write a 3-sentence executive summary for a Status Time Analysis Report covering SSNIT partnership and meeting pipeline health. Cite the exact figures in your sentences. No preambles, no filler phrases.
+
+Key figures:
+- Total status changes recorded: ${data.totalChanges} across ${data.entitiesTracked} entities
+- Overall average days spent per status: ${data.avgDaysOverall} days
+- Slowest-moving status: ${slowest?.name ?? 'N/A'} (avg ${slowest?.avgDays ?? 0} days, ${slowest?.transitions ?? 0} transitions)
+- Fastest-moving status: ${fastest?.name ?? 'N/A'} (avg ${fastest?.avgDays ?? 0} days)
+- Statuses classified as fast-moving (≤7 days avg): ${fastMoving}
+- Statuses classified as stalled (>90 days avg): ${stalled}
+- Most common status transition: ${topTransition?.name ?? 'N/A'} (occurred ${topTransition?.value ?? 0} times)`
+}
 
 export function StatusTimeReport() {
   const { data, isLoading } = useStatusTimeReport()
@@ -26,6 +48,8 @@ export function StatusTimeReport() {
             { label: 'Avg Days Per Status',  value: data.avgDaysOverall > 0 ? `${data.avgDaysOverall}d` : '—' },
             { label: 'Statuses Tracked',     value: data.avgByStatus.length },
           ]} />
+
+          <AISummaryCard prompt={data.totalChanges > 0 ? buildSummaryPrompt(data) : null} />
 
           {data.totalChanges === 0 ? (
             <div className="py-16 text-center text-zinc-400">

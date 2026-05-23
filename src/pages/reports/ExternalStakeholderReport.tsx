@@ -1,9 +1,32 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useExtStakeholderReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316']
+
+type ExtData = NonNullable<ReturnType<typeof useExtStakeholderReport>['data']>
+
+function buildSummaryPrompt(data: ExtData): string {
+  const totalLinks = data.rows.reduce((s, r) => s + r.partnershipCount, 0)
+  const avgLinks = data.total > 0 ? (totalLinks / data.total).toFixed(1) : '0'
+  const noLinks = data.rows.filter(r => r.partnershipCount === 0).length
+  const topOrg = data.byOrg[0]
+  const secondOrg = data.byOrg[1]
+  const topConnected = data.topByPartnerships[0]
+  const multiLinked = data.rows.filter(r => r.partnershipCount >= 2).length
+
+  return `Write a 3-sentence executive summary for an External Stakeholder Report. Cite the exact figures in your sentences. No preambles, no filler phrases.
+
+Key figures:
+- Total external stakeholders on record: ${data.total}
+- Unique organisations represented: ${data.byOrg.length}
+- Total partnership linkages: ${totalLinks} (average ${avgLinks} per stakeholder)
+- Stakeholders linked to 2 or more partnerships: ${multiLinked}
+- Stakeholders with no partnership links: ${noLinks}
+- Largest organisation: ${topOrg?.name ?? 'N/A'} (${topOrg?.value ?? 0} stakeholders)${secondOrg ? `, followed by ${secondOrg.name} (${secondOrg.value})` : ''}
+- Most-connected stakeholder: ${topConnected?.name ?? 'N/A'} (linked to ${topConnected?.value ?? 0} partnerships)`
+}
 
 export function ExternalStakeholderReport() {
   const { data, isLoading } = useExtStakeholderReport()
@@ -25,6 +48,8 @@ export function ExternalStakeholderReport() {
             { label: 'Linked Partnerships',  value: data.rows.reduce((s, r) => s + r.partnershipCount, 0) },
             { label: 'Avg Partnerships',      value: data.total > 0 ? (data.rows.reduce((s, r) => s + r.partnershipCount, 0) / data.total).toFixed(1) : 0 },
           ]} />
+
+          <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           <div className="grid grid-cols-2 gap-6">
             {/* Stakeholders by Organisation */}

@@ -1,9 +1,29 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useIntStakeholderReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const COLORS = ['#3b82f6','#E8621A','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316']
+
+type IntData = NonNullable<ReturnType<typeof useIntStakeholderReport>['data']>
+
+function buildSummaryPrompt(data: IntData): string {
+  const topDept = data.byDepartment[0]
+  const secondDept = data.byDepartment[1]
+  const singleMember = data.byDepartment.filter(d => d.value === 1).length
+  const fivePlus = data.byDepartment.filter(d => d.value >= 5).length
+  const avgPerDept = data.departments > 0 ? (data.total / data.departments).toFixed(1) : '0'
+
+  return `Write a 3-sentence executive summary for an Internal Stakeholder Report. Cite the exact figures in your sentences. No preambles, no filler phrases.
+
+Key figures:
+- Total internal stakeholders: ${data.total}
+- Departments represented: ${data.departments}
+- Average stakeholders per department: ${avgPerDept}
+- Largest department: ${topDept?.name ?? 'N/A'} (${topDept?.value ?? 0} members)${secondDept ? `, followed by ${secondDept.name} (${secondDept.value})` : ''}
+- Departments with only 1 member: ${singleMember}
+- Departments with 5 or more members: ${fivePlus}`
+}
 
 export function InternalStakeholderReport() {
   const { data, isLoading } = useIntStakeholderReport()
@@ -25,6 +45,8 @@ export function InternalStakeholderReport() {
             { label: 'Largest Dept.',      value: data.byDepartment[0]?.name ?? '—' },
             { label: 'Dept. Size (max)',   value: data.byDepartment[0]?.value ?? 0 },
           ]} />
+
+          <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           <div className="grid grid-cols-2 gap-6">
             {/* Bar chart: headcount by department */}
