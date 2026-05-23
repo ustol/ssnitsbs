@@ -49,6 +49,7 @@ export interface Partnership {
   organization: string | null
   description: string | null
   status_id: string | null
+  status_date: string | null
   proposed_value: number | null
   start_date: string | null
   end_date: string | null
@@ -76,6 +77,7 @@ export interface ExternalMeeting {
   minutes: string | null
   action_points: string | null
   status_id: string | null
+  status_date: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -97,6 +99,7 @@ export interface InternalMeeting {
   minutes: string | null
   action_points: string | null
   status_id: string | null
+  status_date: string | null
   created_by: string | null
   created_at: string
   updated_at: string

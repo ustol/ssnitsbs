@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable, Column } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { supabase } from '@/lib/supabase'
 import type { StatusLookup } from '@/types/database'
@@ -24,34 +26,61 @@ const TRACKER_STATUSES = TRACKER_STATUS_CONFIGS.map(s => s.name)
 
 const NONE = '__none__'
 
-function StatusSelect({ currentId, statuses, onSave }: {
-  currentId: string | null
+function StatusUpdateCell({ currentStatusId, currentDate, statuses, onSave }: {
+  currentStatusId: string | null
+  currentDate: string | null
   statuses: StatusLookup[]
-  onSave: (id: string | null) => Promise<void>
+  onSave: (statusId: string | null, date: string | null) => Promise<void>
 }) {
+  const [statusId, setStatusId] = useState(currentStatusId ?? NONE)
+  const [date, setDate] = useState(currentDate ?? '')
   const [saving, setSaving] = useState(false)
 
-  async function handleChange(val: string) {
+  useEffect(() => {
+    setStatusId(currentStatusId ?? NONE)
+    setDate(currentDate ?? '')
+  }, [currentStatusId, currentDate])
+
+  const isDirty = statusId !== (currentStatusId ?? NONE) || date !== (currentDate ?? '')
+
+  async function handleSave() {
     setSaving(true)
     try {
-      await onSave(val === NONE ? null : val)
+      await onSave(statusId === NONE ? null : statusId, date || null)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Select value={currentId ?? NONE} onValueChange={handleChange} disabled={saving}>
-      <SelectTrigger className="h-7 text-xs w-[210px]">
-        <SelectValue placeholder="Assign status…" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NONE}>— None —</SelectItem>
-        {statuses.map(s => (
-          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <Select value={statusId} onValueChange={setStatusId} disabled={saving}>
+        <SelectTrigger className="h-7 text-xs w-[185px]">
+          <SelectValue placeholder="Select status…" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>— None —</SelectItem>
+          {statuses.map(s => (
+            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        type="date"
+        value={date}
+        onChange={e => setDate(e.target.value)}
+        disabled={saving}
+        className="h-7 text-xs w-[130px] px-2"
+      />
+      <Button
+        size="sm"
+        className="h-7 text-xs px-2.5"
+        disabled={!isDirty || saving}
+        onClick={handleSave}
+      >
+        {saving ? '…' : 'Save'}
+      </Button>
+    </div>
   )
 }
 
@@ -113,15 +142,14 @@ export function StatusTracker() {
         : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
-      key: 'update', header: 'Update Status',
+      key: 'update', header: 'Status / Date',
       cell: r => (
-        <div onClick={e => e.stopPropagation()}>
-          <StatusSelect
-            currentId={r.status_id}
-            statuses={statuses}
-            onSave={id => updatePartnership.mutateAsync({ id: r.id, values: { status_id: id } })}
-          />
-        </div>
+        <StatusUpdateCell
+          currentStatusId={r.status_id}
+          currentDate={r.status_date ?? null}
+          statuses={statuses}
+          onSave={(sid, d) => updatePartnership.mutateAsync({ id: r.id, values: { status_id: sid, status_date: d } })}
+        />
       ),
     },
   ]
@@ -154,15 +182,14 @@ export function StatusTracker() {
         : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
-      key: 'update', header: 'Update Status',
+      key: 'update', header: 'Status / Date',
       cell: r => (
-        <div onClick={e => e.stopPropagation()}>
-          <StatusSelect
-            currentId={r.status_id}
-            statuses={statuses}
-            onSave={id => updateExt.mutateAsync({ id: r.id, values: { status_id: id } })}
-          />
-        </div>
+        <StatusUpdateCell
+          currentStatusId={r.status_id}
+          currentDate={r.status_date ?? null}
+          statuses={statuses}
+          onSave={(sid, d) => updateExt.mutateAsync({ id: r.id, values: { status_id: sid, status_date: d } })}
+        />
       ),
     },
   ]
@@ -195,15 +222,14 @@ export function StatusTracker() {
         : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
-      key: 'update', header: 'Update Status',
+      key: 'update', header: 'Status / Date',
       cell: r => (
-        <div onClick={e => e.stopPropagation()}>
-          <StatusSelect
-            currentId={r.status_id}
-            statuses={statuses}
-            onSave={id => updateInt.mutateAsync({ id: r.id, values: { status_id: id } })}
-          />
-        </div>
+        <StatusUpdateCell
+          currentStatusId={r.status_id}
+          currentDate={r.status_date ?? null}
+          statuses={statuses}
+          onSave={(sid, d) => updateInt.mutateAsync({ id: r.id, values: { status_id: sid, status_date: d } })}
+        />
       ),
     },
   ]
