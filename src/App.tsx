@@ -19,6 +19,11 @@ import { DDGFeedbackForm } from '@/pages/feedback/DDGFeedbackForm'
 import { DDGFeedbackView } from '@/pages/feedback/DDGFeedbackView'
 import { DocumentLibrary } from '@/pages/documents/DocumentLibrary'
 import { Reports } from '@/pages/reports/Reports'
+import { ExternalStakeholderReport } from '@/pages/reports/ExternalStakeholderReport'
+import { InternalStakeholderReport } from '@/pages/reports/InternalStakeholderReport'
+import { UserPerformanceReport } from '@/pages/reports/UserPerformanceReport'
+import { ExecutiveOverviewReport } from '@/pages/reports/ExecutiveOverviewReport'
+import { StatusTimeReport } from '@/pages/reports/StatusTimeReport'
 import { Settings } from '@/pages/settings/Settings'
 import { UserList } from '@/pages/users/UserList'
 import { Profile } from '@/pages/users/Profile'
@@ -75,6 +80,11 @@ export default function App() {
           <Route path="status-tracker" element={<StatusTracker />} />
           {/* Reports */}
           <Route path="reports" element={<Reports />} />
+          <Route path="reports/external-stakeholder" element={<ExternalStakeholderReport />} />
+          <Route path="reports/internal-stakeholder" element={<InternalStakeholderReport />} />
+          <Route path="reports/user-performance" element={<UserPerformanceReport />} />
+          <Route path="reports/executive" element={<ExecutiveOverviewReport />} />
+          <Route path="reports/status-time" element={<StatusTimeReport />} />
           {/* Settings */}
           <Route path="settings" element={<Settings />} />
           {/* Users */}

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  BarChart3, TrendingUp, Building2, Users, UserCheck, FileBarChart2, ChevronRight,
+  BarChart3, TrendingUp, Building2, Users, UserCheck, FileBarChart2, ChevronRight, Clock,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useSettings } from '@/hooks/useSettings'
@@ -126,6 +126,19 @@ const REPORT_TYPES = [
     countLabel: 'Partnerships',
     count2Key: 'totalProposed' as const,
     count2Label: 'Proposed',
+  },
+  {
+    title: 'Status Time Analysis',
+    description: 'How long partnerships and meetings stay in each status — transition frequencies, bottlenecks and trends.',
+    icon: Clock,
+    iconBg: 'bg-violet-50',
+    iconColor: 'text-violet-600',
+    btnClass: 'bg-violet-600 hover:bg-violet-700 text-white',
+    to: '/reports/status-time',
+    countKey: null,
+    countLabel: 'Status History',
+    count2Key: null,
+    count2Label: 'Time Analysis',
   },
 ]
 
