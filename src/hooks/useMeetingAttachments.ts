@@ -4,6 +4,20 @@ import { supabase } from '@/lib/supabase'
 import { uploadMeetingFile, deleteMeetingFile, getMeetingFileUrl, getFileCategory } from '@/lib/storage'
 import type { MeetingAttachmentWithUrl } from '@/types/database'
 
+export function useMeetingAttachmentIndex(meetingType: 'external' | 'internal') {
+  return useQuery({
+    queryKey: ['meeting-attachment-index', meetingType],
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await supabase
+        .from('meeting_attachments')
+        .select('meeting_id')
+        .eq('meeting_type', meetingType)
+      if (error) throw error
+      return new Set((data ?? []).map(r => r.meeting_id as string))
+    },
+  })
+}
+
 export function useMeetingAttachments(meetingType: 'external' | 'internal', meetingId: string) {
   return useQuery({
     queryKey: ['meeting-attachments', meetingType, meetingId],

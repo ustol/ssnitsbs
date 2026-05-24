@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Eye, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, X, Paperclip } from 'lucide-react'
 import { useInternalMeetings, useDeleteInternalMeeting } from '@/hooks/useMeetings'
+import { useMeetingAttachmentIndex } from '@/hooks/useMeetingAttachments'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable, Column } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -16,6 +17,7 @@ export function InternalMeetingList() {
   const [searchParams] = useSearchParams()
   const partnershipFilter = searchParams.get('partnership')
   const { data = [], isLoading } = useInternalMeetings()
+  const { data: attachedIds = new Set<string>() } = useMeetingAttachmentIndex('internal')
   const deleteMutation = useDeleteInternalMeeting()
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
@@ -33,9 +35,14 @@ export function InternalMeetingList() {
       key: 'title',
       header: 'Title',
       cell: row => (
-        <Link to={`/meetings/internal/${row.id}`} className="font-medium hover:text-brand transition-colors" onClick={e => e.stopPropagation()}>
-          {row.title as string}
-        </Link>
+        <span className="flex items-center gap-1.5">
+          <Link to={`/meetings/internal/${row.id}`} className="font-medium hover:text-brand transition-colors" onClick={e => e.stopPropagation()}>
+            {row.title as string}
+          </Link>
+          {attachedIds.has(row.id as string) && (
+            <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" title="Has attachments" />
+          )}
+        </span>
       ),
     },
     {
