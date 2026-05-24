@@ -54,7 +54,8 @@ export function useCreatePartnership() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<Partnership>) => {
-      const { data, error } = await supabase.from('partnerships').insert(values).select().single()
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase.from('partnerships').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error
       return data
     },

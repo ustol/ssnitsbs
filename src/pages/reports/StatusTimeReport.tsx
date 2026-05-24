@@ -58,7 +58,7 @@ export function StatusTimeReport() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Average days per status */}
                 <div className="space-y-3">
                   <SectionTitle>Average Days Spent per Status</SectionTitle>

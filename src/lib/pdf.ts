@@ -2,35 +2,47 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
 export async function generatePdf(element: HTMLElement, filename: string): Promise<void> {
+  // Pin to a fixed width so charts and grids render at a consistent, known size
+  const savedWidth = element.style.width
+  const savedMaxWidth = element.style.maxWidth
+  const savedMinWidth = element.style.minWidth
+  element.style.width = '1100px'
+  element.style.maxWidth = '1100px'
+  element.style.minWidth = '1100px'
+
+  // Allow the browser to reflow at the new width before capturing
+  await new Promise(r => setTimeout(r, 250))
+
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
     backgroundColor: '#ffffff',
     logging: false,
-    // Ensure full scrollHeight is captured
-    windowWidth: element.scrollWidth,
-    windowHeight: element.scrollHeight,
+    windowWidth: 1100,
   })
 
-  const imgData = canvas.toDataURL('image/png')
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  // Restore original styles
+  element.style.width = savedWidth
+  element.style.maxWidth = savedMaxWidth
+  element.style.minWidth = savedMinWidth
 
-  const pageW = pdf.internal.pageSize.getWidth()
-  const pageH = pdf.internal.pageSize.getHeight()
-  const imgW = pageW
-  const imgH = (canvas.height * imgW) / canvas.width
+  const imgData = canvas.toDataURL('image/jpeg', 0.95)
 
-  let remaining = imgH
-  let yOffset = 0
+  // Build a single-page PDF whose height exactly matches the content.
+  // This eliminates all page-break cut-offs — no chart will ever be split.
+  const A4_WIDTH_MM = 210
+  const MARGIN_MM = 10
+  const contentWidthMM = A4_WIDTH_MM - MARGIN_MM * 2
+  const contentHeightMM = contentWidthMM * (canvas.height / canvas.width)
+  const pageHeightMM = contentHeightMM + MARGIN_MM * 2
 
-  while (remaining > 0) {
-    pdf.addImage(imgData, 'PNG', 0, -yOffset, imgW, imgH)
-    remaining -= pageH
-    if (remaining > 0) {
-      pdf.addPage()
-      yOffset += pageH
-    }
-  }
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [A4_WIDTH_MM, pageHeightMM],
+  })
+
+  pdf.addImage(imgData, 'JPEG', MARGIN_MM, MARGIN_MM, contentWidthMM, contentHeightMM)
 
   const date = new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
   pdf.save(`${filename} — ${date}.pdf`)

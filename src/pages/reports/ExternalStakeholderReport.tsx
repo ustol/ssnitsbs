@@ -51,7 +51,7 @@ export function ExternalStakeholderReport() {
 
           <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Stakeholders by Organisation */}
             <div className="space-y-3">
               <SectionTitle>Stakeholders by Organisation (Top 10)</SectionTitle>

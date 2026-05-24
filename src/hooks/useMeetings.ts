@@ -65,7 +65,8 @@ export function useCreateExternalMeeting() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<ExternalMeeting>) => {
-      const { data, error } = await supabase.from('external_meetings').insert(values).select().single()
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase.from('external_meetings').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error
       return data
     },
@@ -115,7 +116,8 @@ export function useCreateInternalMeeting() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<InternalMeeting>) => {
-      const { data, error } = await supabase.from('internal_meetings').insert(values).select().single()
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase.from('internal_meetings').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error
       return data
     },

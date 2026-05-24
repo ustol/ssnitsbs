@@ -51,7 +51,8 @@ export function useCreateDDGFeedback() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<DDGFeedback>) => {
-      const { data, error } = await supabase.from('ddg_feedback').insert(values).select().single()
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase.from('ddg_feedback').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error
       return data
     },

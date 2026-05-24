@@ -77,23 +77,51 @@ export function useUserPerformanceReport() {
         supabase.from('ddg_feedback').select('id, created_by'),
       ])
 
+      if (profiles.error) throw profiles.error
+
+      const allPartnerships = partnerships.data ?? []
+      const allExt = extMeetings.data ?? []
+      const allInt = intMeetings.data ?? []
+      const allDdg = feedback.data ?? []
+
       const users = (profiles.data ?? []).map(p => {
-        const partnerships_n = (partnerships.data ?? []).filter(x => x.created_by === p.id).length
-        const ext_n = (extMeetings.data ?? []).filter(x => x.created_by === p.id).length
-        const int_n = (intMeetings.data ?? []).filter(x => x.created_by === p.id).length
-        const ddg_n = (feedback.data ?? []).filter(x => x.created_by === p.id).length
+        const partnerships_n = allPartnerships.filter(x => x.created_by === p.id).length
+        const ext_n = allExt.filter(x => x.created_by === p.id).length
+        const int_n = allInt.filter(x => x.created_by === p.id).length
+        const ddg_n = allDdg.filter(x => x.created_by === p.id).length
         return { ...p, partnerships_n, ext_n, int_n, ddg_n, total: partnerships_n + ext_n + int_n + ddg_n }
       }).sort((a, b) => b.total - a.total)
 
-      const chartData = users.map(u => ({
-        name: (u.full_name ?? u.email ?? 'Unknown').split(' ')[0],
-        Partnerships: u.partnerships_n,
-        'Ext Meetings': u.ext_n,
-        'Int Meetings': u.int_n,
-        DDG: u.ddg_n,
-      }))
+      const chartData = users
+        .filter(u => u.total > 0)
+        .map(u => ({
+          name: (u.full_name ?? u.email ?? 'Unknown').split(' ')[0],
+          Partnerships: u.partnerships_n,
+          'Ext Meetings': u.ext_n,
+          'Int Meetings': u.int_n,
+          DDG: u.ddg_n,
+        }))
 
-      return { users, chartData }
+      // Totals across all records — attributed and unattributed
+      const totals = {
+        partnerships: allPartnerships.length,
+        ext: allExt.length,
+        int: allInt.length,
+        ddg: allDdg.length,
+      }
+      const attributed = {
+        partnerships: allPartnerships.filter(x => x.created_by).length,
+        ext: allExt.filter(x => x.created_by).length,
+        int: allInt.filter(x => x.created_by).length,
+        ddg: allDdg.filter(x => x.created_by).length,
+      }
+      const unattributed =
+        (totals.partnerships - attributed.partnerships) +
+        (totals.ext - attributed.ext) +
+        (totals.int - attributed.int) +
+        (totals.ddg - attributed.ddg)
+
+      return { users, chartData, totals, attributed, unattributed }
     },
   })
 }

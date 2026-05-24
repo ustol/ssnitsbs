@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 
 export function useAISummary() {
   const [summary, setSummary] = useState<string | null>(null)
@@ -10,15 +9,19 @@ export function useAISummary() {
     setIsGenerating(true)
     setError(null)
     try {
-      const { data, error } = await supabase.functions.invoke<{ summary: string; error?: string }>(
-        'generate-summary',
-        { body: { prompt } },
-      )
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
-      setSummary(data?.summary ?? null)
+      const res = await fetch('/api/generate-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      })
+      const json = (await res.json()) as { summary?: string; error?: string }
+      if (!res.ok || json.error) throw new Error(json.error ?? `Server error ${res.status}`)
+      setSummary(json.summary ?? null)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to generate summary')
+      const msg = e instanceof Error ? e.message : 'Failed to generate summary'
+      setError(msg.includes('ANTHROPIC_API_KEY')
+        ? 'Add ANTHROPIC_API_KEY to your Vercel project environment variables to enable AI summaries.'
+        : msg)
     } finally {
       setIsGenerating(false)
     }

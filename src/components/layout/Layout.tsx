@@ -45,7 +45,7 @@ export default function Layout() {
       >
         {/* Responsive: ignore margin-left on mobile */}
         <style>{`@media (max-width: 991.98px) { main { margin-left: 0 !important; } }`}</style>
-        <div className="p-6 max-w-[1440px]">
+        <div className="p-3 sm:p-4 md:p-6 max-w-[1440px]">
           <Outlet />
         </div>
       </main>

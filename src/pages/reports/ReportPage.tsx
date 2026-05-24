@@ -28,24 +28,26 @@ export function ReportPage({ title, subtitle, filename, children, loading }: Rep
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4 gap-3">
         <Link
           to="/reports"
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ChevronLeft size={15} />
-          Back to Reports
+          <span className="hidden sm:inline">Back to Reports</span>
+          <span className="sm:hidden">Back</span>
         </Link>
-        <Button onClick={handleDownload} disabled={generating || loading} className="gap-2">
-          {generating ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-          {generating ? 'Generating PDF…' : 'Download PDF'}
+        <Button onClick={handleDownload} disabled={generating || loading} size="sm" className="gap-2 shrink-0">
+          {generating ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          <span className="hidden sm:inline">{generating ? 'Generating PDF…' : 'Download PDF'}</span>
+          <span className="sm:hidden">{generating ? 'Generating…' : 'PDF'}</span>
         </Button>
       </div>
 
       {/* Printable area */}
-      <div ref={printRef} className="bg-white rounded-xl border p-8 space-y-8 min-h-[400px]">
+      <div ref={printRef} className="bg-white rounded-xl border p-4 sm:p-8 space-y-6 sm:space-y-8 min-h-[400px]">
         {/* Branded header */}
         <div className="flex items-start justify-between pb-6 border-b">
           <div>
@@ -75,11 +77,11 @@ export function ReportPage({ title, subtitle, filename, children, loading }: Rep
 
 export function KpiRow({ items }: { items: { label: string; value: string | number; color?: string }[] }) {
   return (
-    <div className={`grid gap-4 grid-cols-${Math.min(items.length, 4)}`} style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 4)}, 1fr)` }}>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {items.map(item => (
-        <div key={item.label} className="p-4 rounded-lg border bg-zinc-50">
-          <p className="text-xs text-zinc-500 font-medium">{item.label}</p>
-          <p className={`text-2xl font-bold tabular-nums mt-1 ${item.color ?? 'text-zinc-900'}`}>{item.value}</p>
+        <div key={item.label} className="p-3 sm:p-4 rounded-lg border bg-zinc-50">
+          <p className="text-xs text-zinc-500 font-medium leading-snug">{item.label}</p>
+          <p className={`text-xl sm:text-2xl font-bold tabular-nums mt-1 ${item.color ?? 'text-zinc-900'}`}>{item.value}</p>
         </div>
       ))}
     </div>
@@ -163,7 +165,7 @@ export function AISummaryCard({ prompt }: { prompt: string | null }) {
 
 export function ReportTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="overflow-x-auto -mx-1 rounded-lg border">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-zinc-50 border-b">

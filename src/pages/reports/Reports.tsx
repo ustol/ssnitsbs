@@ -151,7 +151,7 @@ export function Reports() {
   const totalProposed = data?.totalProposed ?? 0
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title="Executive Reports"
         subtitle="Select the type of report to generate"
