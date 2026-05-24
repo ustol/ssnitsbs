@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus, Eye, Pencil, Trash2, X } from 'lucide-react'
 import { useInternalMeetings, useDeleteInternalMeeting } from '@/hooks/useMeetings'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable, Column } from '@/components/shared/DataTable'
@@ -13,9 +13,20 @@ type Row = Record<string, unknown>
 
 export function InternalMeetingList() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const partnershipFilter = searchParams.get('partnership')
   const { data = [], isLoading } = useInternalMeetings()
   const deleteMutation = useDeleteInternalMeeting()
   const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const filtered = partnershipFilter
+    ? data.filter(row => (row as Row).partnership_id === partnershipFilter)
+    : data
+
+  const partnershipName = partnershipFilter
+    ? ((filtered[0] as Row | undefined)?.partnership as { title: string } | null)?.title
+      ?? ((data.find(r => (r as Row).partnership_id === partnershipFilter) as Row | undefined)?.partnership as { title: string } | null)?.title
+    : null
 
   const columns: Column<Row>[] = [
     {
@@ -72,20 +83,27 @@ export function InternalMeetingList() {
     <div className="p-6">
       <PageHeader
         title="Internal Meetings"
-        subtitle={`${data.length} total`}
+        subtitle={partnershipName ? `Filtered by: ${partnershipName} — ${filtered.length} meeting${filtered.length !== 1 ? 's' : ''}` : `${data.length} total`}
         actions={
-          <Button size="sm" asChild>
-            <Link to="/meetings/internal/new"><Plus className="h-3.5 w-3.5 mr-1.5" />New Meeting</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {partnershipFilter && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/meetings/internal"><X className="h-3.5 w-3.5 mr-1.5" />Show all</Link>
+              </Button>
+            )}
+            <Button size="sm" asChild>
+              <Link to="/meetings/internal/new"><Plus className="h-3.5 w-3.5 mr-1.5" />New Meeting</Link>
+            </Button>
+          </div>
         }
       />
       <DataTable
-        data={data as Row[]}
+        data={filtered as Row[]}
         columns={columns}
         loading={isLoading}
         searchKeys={['title'] as (keyof Row)[]}
         searchPlaceholder="Search meetings…"
-        emptyTitle="No internal meetings yet"
+        emptyTitle={partnershipFilter ? 'No meetings for this partnership' : 'No internal meetings yet'}
         emptyAction={<Button size="sm" asChild><Link to="/meetings/internal/new">Add Meeting</Link></Button>}
         onRowClick={row => navigate(`/meetings/internal/${row.id}`)}
       />
