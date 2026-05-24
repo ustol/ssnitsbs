@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { uploadMeetingFile, deleteMeetingFile, getMeetingFileUrl, getFileCategory } from '@/lib/storage'
+import { uploadMeetingFile, deleteMeetingFile, getMeetingFileSignedUrl, getFileCategory } from '@/lib/storage'
 import type { MeetingAttachmentWithUrl } from '@/types/database'
 
 export function useMeetingAttachmentIndex(meetingType: 'external' | 'internal') {
@@ -29,7 +29,9 @@ export function useMeetingAttachments(meetingType: 'external' | 'internal', meet
         .eq('meeting_id', meetingId)
         .order('created_at')
       if (error) throw error
-      return (data ?? []).map(a => ({ ...a, url: getMeetingFileUrl(a.file_path) }))
+      const rows = data ?? []
+      const urls = await Promise.all(rows.map(a => getMeetingFileSignedUrl(a.file_path)))
+      return rows.map((a, i) => ({ ...a, url: urls[i] }))
     },
     enabled: !!meetingId,
   })

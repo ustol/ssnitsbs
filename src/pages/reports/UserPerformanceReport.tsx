@@ -9,20 +9,38 @@ const PIE_COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899']
 type UserData = NonNullable<ReturnType<typeof useUserPerformanceReport>['data']>
 
 function buildSummaryPrompt(data: UserData): string {
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   const active = data.users.filter(u => u.total > 0).length
-  const top = data.users[0]
-  const second = data.users[1]
-  const topShare = (data.totals.partnerships + data.totals.ext + data.totals.int + data.totals.ddg) > 0 && top
-    ? Math.round((top.total / (data.totals.partnerships + data.totals.ext + data.totals.int + data.totals.ddg)) * 100)
-    : 0
+  const totalAll = data.totals.partnerships + data.totals.ext + data.totals.int + data.totals.ddg
 
-  return `Write a 3-sentence executive summary for a User Performance Report. Cite the exact figures in your sentences. No preambles, no filler phrases.
+  const userLines = data.users.filter(u => u.total > 0).map(u =>
+    `  • ${u.full_name ?? u.email ?? 'Unknown'} (${u.role ?? 'Standard'}) — ${u.total} records total: ${u.partnerships_n} partnerships, ${u.ext_n} ext. meetings, ${u.int_n} int. meetings, ${u.ddg_n} DDG feedback`
+  ).join('\n')
 
-Key figures:
-- Total system users: ${data.users.length} (${active} with at least 1 attributed record)
-- Total records in the system: ${data.totals.partnerships + data.totals.ext + data.totals.int + data.totals.ddg} (${data.attributed.partnerships + data.attributed.ext + data.attributed.int + data.attributed.ddg} attributed to named users; ${data.unattributed} unattributed)
-- Module totals: ${data.totals.partnerships} partnerships | ${data.totals.ext} external meetings | ${data.totals.int} internal meetings | ${data.totals.ddg} DDG feedback
-${top ? `- Most active attributed user: ${top.full_name ?? 'N/A'} — ${top.total} records (${topShare}% of attributed); ${top.partnerships_n} partnerships, ${top.ext_n} ext. meetings, ${top.int_n} int. meetings, ${top.ddg_n} DDG feedback` : ''}${second ? `\n- Second: ${second.full_name ?? 'N/A'} — ${second.total} records` : ''}`
+  return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
+
+Output the memo EXACTLY in this format:
+
+MEMORANDUM
+
+TO: DDG, Operations and Benefits
+FROM: Special Business Support Team
+DATE: ${today}
+SUBJECT: User Activity and Performance Report — SBS System
+
+[Write 3–4 paragraphs: (1) overall system usage and data entry activity, (2) individual user contributions — name the most active users and what they've contributed, (3) attribution coverage and any unattributed records, (4) any observations or recommendations. Reference users by their actual names and specific record counts.]
+
+--- DATA ---
+
+SYSTEM USERS (${data.users.length} total, ${active} with attributed activity):
+${userLines || '  No attributed activity recorded.'}
+
+SYSTEM TOTALS:
+  Partnerships: ${data.totals.partnerships} (${data.attributed.partnerships} attributed)
+  External Meetings: ${data.totals.ext} (${data.attributed.ext} attributed)
+  Internal Meetings: ${data.totals.int} (${data.attributed.int} attributed)
+  DDG Feedback: ${data.totals.ddg} (${data.attributed.ddg} attributed)
+  Unattributed records: ${data.unattributed} of ${totalAll}`
 }
 
 export function UserPerformanceReport() {

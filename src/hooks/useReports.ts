@@ -6,11 +6,22 @@ export function useExtStakeholderReport() {
   return useQuery({
     queryKey: ['report-ext-stakeholders'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('external_stakeholders')
-        .select(`*, partnerships:partnership_external_stakeholders(partnership:partnerships(id,title))`)
-        .order('name')
+      const [stakeholderRes, meetingRes] = await Promise.all([
+        supabase
+          .from('external_stakeholders')
+          .select(`*, partnerships:partnership_external_stakeholders(partnership:partnerships(id,title,description,status:status_lookup(name)))`)
+          .order('name'),
+        supabase
+          .from('external_meetings')
+          .select('id, title, meeting_date, partnership_id, location, action_points')
+          .order('meeting_date', { ascending: false })
+          .limit(20),
+      ])
+
+      const { data, error } = stakeholderRes
       if (error) throw error
+
+      const recentMeetings = meetingRes.data ?? []
 
       const rows = (data ?? []).map(s => ({
         ...s,
@@ -33,7 +44,7 @@ export function useExtStakeholderReport() {
         .slice(0, 10)
         .map(s => ({ name: s.name.split(' ').slice(0, 2).join(' '), value: s.partnershipCount }))
 
-      return { rows, byOrg, topByPartnerships, total: rows.length }
+      return { rows, byOrg, topByPartnerships, total: rows.length, recentMeetings }
     },
   })
 }
@@ -43,13 +54,29 @@ export function useIntStakeholderReport() {
   return useQuery({
     queryKey: ['report-int-stakeholders'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('internal_stakeholders')
-        .select('*')
-        .order('name')
+      const [stakeholderRes, meetingRes] = await Promise.all([
+        supabase
+          .from('internal_stakeholders')
+          .select(`*, partnerships:partnership_internal_stakeholders(partnership:partnerships(id,title,status:status_lookup(name)))`)
+          .order('name'),
+        supabase
+          .from('internal_meetings')
+          .select('id, title, meeting_date, partnership_id, action_points')
+          .order('meeting_date', { ascending: false })
+          .limit(20),
+      ])
+
+      const { data, error } = stakeholderRes
       if (error) throw error
 
-      const rows = data ?? []
+      const recentMeetings = meetingRes.data ?? []
+
+      const rows = (data ?? []).map(s => ({
+        ...s,
+        partnershipCount: (s as Record<string, unknown>).partnerships ? ((s as Record<string, unknown>).partnerships as unknown[]).length : 0,
+        partnershipNames: ((s as Record<string, unknown>).partnerships as Array<{ partnership?: { title: string } }> ?? [])
+          .map(p => p.partnership?.title).filter(Boolean).join(', '),
+      }))
 
       const byDepartment = Object.entries(
         rows.reduce((acc, s) => {
@@ -59,7 +86,7 @@ export function useIntStakeholderReport() {
         }, {} as Record<string, number>)
       ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
 
-      return { rows, byDepartment, total: rows.length, departments: byDepartment.length }
+      return { rows, byDepartment, total: rows.length, departments: byDepartment.length, recentMeetings }
     },
   })
 }
@@ -131,10 +158,11 @@ export function useExecutiveReport() {
   return useQuery({
     queryKey: ['report-executive'],
     queryFn: async () => {
-      const [partnerships, extMeetings, intMeetings, settings] = await Promise.all([
+      const [partnerships, extMeetings, intMeetings, ddgFeedback, settings] = await Promise.all([
         supabase.from('partnerships').select('*, status:status_lookup(name, color)').order('created_at', { ascending: false }),
-        supabase.from('external_meetings').select('id, partnership_id, meeting_date'),
-        supabase.from('internal_meetings').select('id, partnership_id, meeting_date'),
+        supabase.from('external_meetings').select('id, partnership_id, meeting_date, title, location, action_points').order('meeting_date', { ascending: false }),
+        supabase.from('internal_meetings').select('id, partnership_id, meeting_date, title, action_points').order('meeting_date', { ascending: false }),
+        supabase.from('ddg_feedback').select('id, summary, feedback_type, is_actioned, received_date').order('received_date', { ascending: false }).limit(10),
         supabase.from('system_settings').select('key, value'),
       ])
 
@@ -198,7 +226,31 @@ export function useExecutiveReport() {
         { label: `Worst Case (${worstPct}%)`, value: Math.round(totalProposed * worstPct / 100) },
       ]
 
-      return { rows, byStatus, valueByStatus, topByMeetings, monthlyMeetings, projections, totalProposed, bestPct, worstPct }
+      const ddgItems = (ddgFeedback.data ?? []).map(f => ({
+        summary: f.summary as string,
+        type: f.feedback_type as string,
+        actioned: f.is_actioned as boolean,
+        date: f.received_date as string,
+      }))
+
+      const extMeetingDetails = (extMeetings.data ?? []).slice(0, 15).map(m => ({
+        title: m.title as string,
+        date: m.meeting_date as string,
+        location: m.location as string,
+        action_points: m.action_points as string,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        partnership: rows.find((p: any) => p.id === m.partnership_id)?.title ?? null,
+      }))
+
+      const intMeetingDetails = (intMeetings.data ?? []).slice(0, 15).map(m => ({
+        title: m.title as string,
+        date: m.meeting_date as string,
+        action_points: m.action_points as string,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        partnership: rows.find((p: any) => p.id === m.partnership_id)?.title ?? null,
+      }))
+
+      return { rows, byStatus, valueByStatus, topByMeetings, monthlyMeetings, projections, totalProposed, bestPct, worstPct, ddgItems, extMeetingDetails, intMeetingDetails }
     },
   })
 }

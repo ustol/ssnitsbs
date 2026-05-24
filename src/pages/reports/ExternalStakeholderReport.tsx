@@ -8,24 +8,43 @@ const COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14
 type ExtData = NonNullable<ReturnType<typeof useExtStakeholderReport>['data']>
 
 function buildSummaryPrompt(data: ExtData): string {
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   const totalLinks = data.rows.reduce((s, r) => s + r.partnershipCount, 0)
-  const avgLinks = data.total > 0 ? (totalLinks / data.total).toFixed(1) : '0'
   const noLinks = data.rows.filter(r => r.partnershipCount === 0).length
-  const topOrg = data.byOrg[0]
-  const secondOrg = data.byOrg[1]
-  const topConnected = data.topByPartnerships[0]
-  const multiLinked = data.rows.filter(r => r.partnershipCount >= 2).length
 
-  return `Write a 3-sentence executive summary for an External Stakeholder Report. Cite the exact figures in your sentences. No preambles, no filler phrases.
+  const stakeholderLines = data.rows
+    .filter(r => r.partnershipCount > 0)
+    .slice(0, 15)
+    .map(s => `  • ${s.name} (${s.organization ?? 'Unknown org'}) — Partnerships: ${s.partnershipNames || 'None'}`)
+    .join('\n')
 
-Key figures:
-- Total external stakeholders on record: ${data.total}
-- Unique organisations represented: ${data.byOrg.length}
-- Total partnership linkages: ${totalLinks} (average ${avgLinks} per stakeholder)
-- Stakeholders linked to 2 or more partnerships: ${multiLinked}
-- Stakeholders with no partnership links: ${noLinks}
-- Largest organisation: ${topOrg?.name ?? 'N/A'} (${topOrg?.value ?? 0} stakeholders)${secondOrg ? `, followed by ${secondOrg.name} (${secondOrg.value})` : ''}
-- Most-connected stakeholder: ${topConnected?.name ?? 'N/A'} (linked to ${topConnected?.value ?? 0} partnerships)`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meetingLines = (data.recentMeetings as any[]).slice(0, 10).map((m: any) =>
+    `  • ${m.title ?? 'Untitled'} (${m.meeting_date ?? '—'})${m.location ? ` @ ${m.location}` : ''}${m.action_points ? `\n    Actions: ${(m.action_points as string).substring(0, 180)}` : ''}`
+  ).join('\n')
+
+  return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
+
+Output the memo EXACTLY in this format:
+
+MEMORANDUM
+
+TO: DDG, Operations and Benefits
+FROM: Special Business Support Team
+DATE: ${today}
+SUBJECT: External Stakeholder Engagement Report
+
+[Write 3–4 paragraphs: (1) overview of the external stakeholder register and organisational coverage, (2) highlight the most engaged stakeholders and their partnership involvement by name, (3) meeting activity — specific external meetings and their outcomes, (4) any gaps or recommended actions. Reference stakeholders, organisations, and partnerships by their actual names.]
+
+--- DATA ---
+
+EXTERNAL STAKEHOLDERS (${data.total} total, ${data.byOrg.length} organisations, ${noLinks} with no partnership links):
+${stakeholderLines || '  No stakeholders with partnerships.'}
+
+RECENT EXTERNAL MEETINGS (last ${Math.min(10, (data.recentMeetings as unknown[]).length)}):
+${meetingLines || '  No meetings recorded.'}
+
+Partnership linkages: ${totalLinks} total`
 }
 
 export function ExternalStakeholderReport() {

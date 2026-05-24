@@ -8,21 +8,39 @@ const COLORS = ['#3b82f6','#E8621A','#10b981','#f59e0b','#8b5cf6','#ec4899','#14
 type IntData = NonNullable<ReturnType<typeof useIntStakeholderReport>['data']>
 
 function buildSummaryPrompt(data: IntData): string {
-  const topDept = data.byDepartment[0]
-  const secondDept = data.byDepartment[1]
-  const singleMember = data.byDepartment.filter(d => d.value === 1).length
-  const fivePlus = data.byDepartment.filter(d => d.value >= 5).length
-  const avgPerDept = data.departments > 0 ? (data.total / data.departments).toFixed(1) : '0'
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  return `Write a 3-sentence executive summary for an Internal Stakeholder Report. Cite the exact figures in your sentences. No preambles, no filler phrases.
+  const stakeholderLines = data.rows.slice(0, 20).map(s => {
+    const r = s as Record<string, unknown>
+    const partnerships = (r.partnershipNames as string | undefined) || 'No partnerships linked'
+    return `  • ${s.name} — ${s.department ?? 'No dept'} (${s.title ?? 'No title'}) — Partnerships: ${partnerships}`
+  }).join('\n')
 
-Key figures:
-- Total internal stakeholders: ${data.total}
-- Departments represented: ${data.departments}
-- Average stakeholders per department: ${avgPerDept}
-- Largest department: ${topDept?.name ?? 'N/A'} (${topDept?.value ?? 0} members)${secondDept ? `, followed by ${secondDept.name} (${secondDept.value})` : ''}
-- Departments with only 1 member: ${singleMember}
-- Departments with 5 or more members: ${fivePlus}`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meetingLines = (data.recentMeetings as any[]).slice(0, 10).map((m: any) =>
+    `  • ${m.title ?? 'Untitled'} (${m.meeting_date ?? '—'})${m.action_points ? `\n    Actions: ${(m.action_points as string).substring(0, 180)}` : ''}`
+  ).join('\n')
+
+  return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
+
+Output the memo EXACTLY in this format:
+
+MEMORANDUM
+
+TO: DDG, Operations and Benefits
+FROM: Special Business Support Team
+DATE: ${today}
+SUBJECT: Internal Stakeholder Engagement Report
+
+[Write 3–4 paragraphs: (1) overview of SSNIT's internal stakeholder coverage across departments, (2) departmental participation — name the most active departments and their members, (3) recent internal meeting activity with specific outcomes, (4) any gaps or follow-up actions required. Reference departments, individuals, and partnerships by name.]
+
+--- DATA ---
+
+INTERNAL STAKEHOLDERS (${data.total} across ${data.departments} departments):
+${stakeholderLines || '  No internal stakeholders recorded.'}
+
+RECENT INTERNAL MEETINGS (last ${Math.min(10, (data.recentMeetings as unknown[]).length)}):
+${meetingLines || '  No internal meetings recorded.'}`
 }
 
 export function InternalStakeholderReport() {

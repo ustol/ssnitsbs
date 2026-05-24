@@ -108,7 +108,7 @@ export function AISummaryCard({ prompt }: { prompt: string | null }) {
           <div className="w-6 h-6 rounded-md bg-brand flex items-center justify-center shrink-0">
             <Sparkles size={12} className="text-white" />
           </div>
-          <span className="text-sm font-semibold text-zinc-800">AI Executive Summary</span>
+          <span className="text-sm font-semibold text-zinc-800">AI Memo — DDG, Operations &amp; Benefits</span>
         </div>
         {summary && !isGenerating && (
           <div data-html2canvas-ignore="true">
@@ -155,7 +155,7 @@ export function AISummaryCard({ prompt }: { prompt: string | null }) {
       )}
 
       {summary && !isGenerating && (
-        <p className="text-sm text-zinc-700 leading-relaxed">{summary}</p>
+        <pre className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap font-sans">{summary}</pre>
       )}
     </div>
   )

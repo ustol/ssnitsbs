@@ -17,26 +17,61 @@ function fmt(n: number) {
 type ExecData = NonNullable<ReturnType<typeof useExecutiveReport>['data']>
 
 function buildSummaryPrompt(data: ExecData): string {
-  const topStatus = [...data.byStatus].sort((a, b) => b.value - a.value)[0]
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   const totalExt = data.rows.reduce((s, p) => s + p.extCount, 0)
   const totalInt = data.rows.reduce((s, p) => s + p.intCount, 0)
-  const totalMeetings = totalExt + totalInt
-  const noMeetings = data.rows.filter(p => p.totalMeetings === 0).length
-  const topPartnership = data.topByMeetings[0]
-  const statusBreakdown = data.byStatus.map(s => `${s.name}: ${s.value}`).join(' | ')
+  const pendingDDG = data.ddgItems.filter(f => !f.actioned).length
 
-  return `Write a 4-sentence executive summary for an Executive Overview Report on the SSNIT Strategic Business Support System partnership pipeline. Cite the exact figures in your sentences. No preambles, no filler phrases.
+  const partnershipLines = data.rows.map(p => {
+    const desc = (p as Record<string, unknown>).description as string | null
+    return `  • ${(p as { title: string }).title} [${(p as { status?: { name: string } }).status?.name ?? 'No Status'}] — Proposed: ${fmt((p as { proposed_value?: number }).proposed_value ?? 0)} members, Meetings: ${p.extCount} ext / ${p.intCount} int${desc ? `\n    Objective: ${desc.substring(0, 200)}` : ''}`
+  }).join('\n')
 
-Key figures:
-- Total partnerships in pipeline: ${data.rows.length}
-- Total proposed membership value: ${fmt(data.totalProposed)} members
-- Best-case projection (${data.bestPct}%): ${fmt(Math.round(data.totalProposed * data.bestPct / 100))} members
-- Worst-case projection (${data.worstPct}%): ${fmt(Math.round(data.totalProposed * data.worstPct / 100))} members
-- Status breakdown: ${statusBreakdown || 'No status data'}
-- Dominant status: ${topStatus?.name ?? 'N/A'} (${topStatus?.value ?? 0} partnerships)
-- Total meetings: ${totalMeetings} (${totalExt} external, ${totalInt} internal)
-- Most active partnership by meeting count: ${topPartnership?.name ?? 'N/A'} (${(topPartnership?.ext ?? 0) + (topPartnership?.int ?? 0)} meetings)
-- Partnerships with zero meetings: ${noMeetings}`
+  const extMeetingLines = data.extMeetingDetails.slice(0, 10).map(m =>
+    `  • ${m.title ?? 'Untitled'} (${m.date ?? 'No date'})${m.partnership ? ` — ${m.partnership}` : ''}${m.location ? ` @ ${m.location}` : ''}${m.action_points ? `\n    Actions: ${(m.action_points as string).substring(0, 180)}` : ''}`
+  ).join('\n')
+
+  const intMeetingLines = data.intMeetingDetails.slice(0, 8).map(m =>
+    `  • ${m.title ?? 'Untitled'} (${m.date ?? 'No date'})${m.partnership ? ` — ${m.partnership}` : ''}${m.action_points ? `\n    Actions: ${(m.action_points as string).substring(0, 150)}` : ''}`
+  ).join('\n')
+
+  const ddgLines = data.ddgItems.slice(0, 8).map(f =>
+    `  • [${f.type}] ${f.summary ?? 'No summary'} — ${f.actioned ? 'Actioned' : 'PENDING'} (${f.date ?? '—'})`
+  ).join('\n')
+
+  return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
+
+Output the memo EXACTLY in this format (include the header lines):
+
+MEMORANDUM
+
+TO: DDG, Operations and Benefits
+FROM: Special Business Support Team
+DATE: ${today}
+SUBJECT: Executive Overview of Strategic Partnership Pipeline
+
+[Write 4–5 paragraphs: (1) overall pipeline health and numbers, (2) highlight the most active or significant partnerships by name with specific meeting outcomes, (3) DDG feedback status, (4) projections and outlook, (5) recommended actions or items requiring the DDG's attention. Reference partnerships and meetings by their actual names. Cite exact figures throughout.]
+
+--- DATA ---
+
+PARTNERSHIP PIPELINE (${data.rows.length} total):
+${partnershipLines || '  No partnerships recorded.'}
+
+PIPELINE PROJECTIONS:
+  Full pipeline: ${fmt(data.totalProposed)} members
+  Best case (${data.bestPct}%): ${fmt(Math.round(data.totalProposed * data.bestPct / 100))} members
+  Worst case (${data.worstPct}%): ${fmt(Math.round(data.totalProposed * data.worstPct / 100))} members
+
+RECENT EXTERNAL MEETINGS (last ${Math.min(10, data.extMeetingDetails.length)}):
+${extMeetingLines || '  No external meetings.'}
+
+RECENT INTERNAL MEETINGS (last ${Math.min(8, data.intMeetingDetails.length)}):
+${intMeetingLines || '  No internal meetings.'}
+
+DDG FEEDBACK (${data.ddgItems.length} items, ${pendingDDG} pending):
+${ddgLines || '  No DDG feedback recorded.'}
+
+Total meetings: ${totalExt + totalInt} (${totalExt} external, ${totalInt} internal)`
 }
 
 export function ExecutiveOverviewReport() {

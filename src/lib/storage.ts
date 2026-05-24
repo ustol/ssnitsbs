@@ -32,6 +32,12 @@ export function getMeetingFileUrl(path: string): string {
   return data.publicUrl
 }
 
+export async function getMeetingFileSignedUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(MEETING_BUCKET).createSignedUrl(path, 3600)
+  if (error) return getMeetingFileUrl(path)
+  return data.signedUrl
+}
+
 export async function deleteMeetingFile(path: string): Promise<void> {
   const { error } = await supabase.storage.from(MEETING_BUCKET).remove([path])
   if (error) throw error
