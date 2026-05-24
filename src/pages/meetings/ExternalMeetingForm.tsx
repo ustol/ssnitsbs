@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { toast } from 'sonner'
 import { writeAudit } from '@/hooks/useAuditLog'
 import { uploadPendingFiles, type PendingUpload } from '@/hooks/useMeetingAttachments'
 import type { PartnershipWithRelations } from '@/types/database'
@@ -84,15 +85,29 @@ export function ExternalMeetingForm() {
     try {
       if (isEdit) {
         await updateMutation.mutateAsync({ id: id!, values: payload })
-        if (pendingFiles.length > 0) await uploadPendingFiles(pendingFiles, 'external', id!)
+        if (pendingFiles.length > 0) {
+          try {
+            await uploadPendingFiles(pendingFiles, 'external', id!)
+          } catch (uploadErr) {
+            toast.error(`Files could not be uploaded: ${(uploadErr as Error).message}`)
+          }
+        }
         writeAudit({ action: 'updated', entity_type: 'external_meeting', entity_id: id!, entity_name: values.title })
         navigate(`/meetings/external/${id}`)
       } else {
         const created = await createMutation.mutateAsync(payload) as { id: string; title: string }
-        if (pendingFiles.length > 0) await uploadPendingFiles(pendingFiles, 'external', created.id)
+        if (pendingFiles.length > 0) {
+          try {
+            await uploadPendingFiles(pendingFiles, 'external', created.id)
+          } catch (uploadErr) {
+            toast.error(`Files could not be uploaded: ${(uploadErr as Error).message}`)
+          }
+        }
         writeAudit({ action: 'created', entity_type: 'external_meeting', entity_id: created.id, entity_name: created.title })
         navigate(`/meetings/external/${created.id}`, { replace: true })
       }
+    } catch (err) {
+      toast.error(`Failed to save meeting: ${(err as Error).message}`)
     } finally {
       setIsSaving(false)
       setPreview(false)
