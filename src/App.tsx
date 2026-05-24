@@ -28,6 +28,7 @@ import { Settings } from '@/pages/settings/Settings'
 import { UserList } from '@/pages/users/UserList'
 import { Profile } from '@/pages/users/Profile'
 import { StatusTracker } from '@/pages/status/StatusTracker'
+import { AuditLog } from '@/pages/audit/AuditLog'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -85,6 +86,8 @@ export default function App() {
           <Route path="reports/user-performance" element={<UserPerformanceReport />} />
           <Route path="reports/executive" element={<ExecutiveOverviewReport />} />
           <Route path="reports/status-time" element={<StatusTimeReport />} />
+          {/* Audit Trail */}
+          <Route path="audit" element={<AuditLog />} />
           {/* Settings */}
           <Route path="settings" element={<Settings />} />
           {/* Users */}

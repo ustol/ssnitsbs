@@ -1,18 +1,23 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Paperclip } from 'lucide-react'
 import { useInternalMeeting, useCreateInternalMeeting, useUpdateInternalMeeting } from '@/hooks/useMeetings'
 import { usePartnerships } from '@/hooks/usePartnerships'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { FileUpload } from '@/components/shared/FileUpload'
+import { MeetingPreviewDialog } from '@/components/shared/MeetingPreviewDialog'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { writeAudit } from '@/hooks/useAuditLog'
+import { uploadPendingFiles, type PendingUpload } from '@/hooks/useMeetingAttachments'
 import type { PartnershipWithRelations } from '@/types/database'
 
 const schema = z.object({
@@ -37,6 +42,9 @@ export function InternalMeetingForm() {
   const updateMutation = useUpdateInternalMeeting()
 
   const form = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([])
+  const [preview, setPreview] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (meeting) {
@@ -53,33 +61,59 @@ export function InternalMeetingForm() {
     }
   }, [meeting, form])
 
-  const onSubmit = async (values: FormValues) => {
+  const partnershipName = (pid: string | undefined) =>
+    (partnerships as PartnershipWithRelations[]).find(p => p.id === pid)?.title ?? null
+
+  const handlePreview = () => {
+    form.trigger().then(valid => { if (valid) setPreview(true) })
+  }
+
+  const handleConfirm = async () => {
+    const values = form.getValues()
     const payload = {
       ...values,
       partnership_id: values.partnership_id || null,
       meeting_date: values.meeting_date || null,
     }
-    if (isEdit) {
-      await updateMutation.mutateAsync({ id: id!, values: payload })
-      navigate(`/meetings/internal/${id}`)
-    } else {
-      const created = await createMutation.mutateAsync(payload) as Record<string, unknown>
-      navigate(`/meetings/internal/${created.id}`, { replace: true })
+
+    setIsSaving(true)
+    try {
+      if (isEdit) {
+        await updateMutation.mutateAsync({ id: id!, values: payload })
+        if (pendingFiles.length > 0) await uploadPendingFiles(pendingFiles, 'internal', id!)
+        writeAudit({ action: 'updated', entity_type: 'internal_meeting', entity_id: id!, entity_name: values.title })
+        navigate(`/meetings/internal/${id}`)
+      } else {
+        const created = await createMutation.mutateAsync(payload) as { id: string; title: string }
+        if (pendingFiles.length > 0) await uploadPendingFiles(pendingFiles, 'internal', created.id)
+        writeAudit({ action: 'created', entity_type: 'internal_meeting', entity_id: created.id, entity_name: created.title })
+        navigate(`/meetings/internal/${created.id}`, { replace: true })
+      }
+    } finally {
+      setIsSaving(false)
+      setPreview(false)
     }
   }
 
   if (isEdit && isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
 
+  const values = form.watch()
+
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
       <PageHeader
-        title={isEdit ? 'Edit Meeting' : 'New Internal Meeting'}
-        actions={<Button variant="outline" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back</Button>}
+        title={isEdit ? 'Edit Internal Meeting' : 'New Internal Meeting'}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back
+          </Button>
+        }
       />
+
       <Card>
         <CardContent className="pt-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form className="space-y-4">
               <FormField control={form.control} name="title" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Title <span className="text-destructive">*</span></FormLabel>
@@ -103,7 +137,7 @@ export function InternalMeetingForm() {
                 </FormItem>
               )} />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField control={form.control} name="meeting_date" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date</FormLabel>
@@ -114,7 +148,7 @@ export function InternalMeetingForm() {
                 <FormField control={form.control} name="location" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Location</FormLabel>
-                    <FormControl><Input placeholder="Venue or online" {...field} /></FormControl>
+                    <FormControl><Input placeholder="Venue or online link" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -123,7 +157,7 @@ export function InternalMeetingForm() {
               <FormField control={form.control} name="agenda" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Agenda</FormLabel>
-                  <FormControl><Textarea placeholder="Agenda items…" rows={3} {...field} /></FormControl>
+                  <FormControl><Textarea placeholder="Meeting agenda…" rows={3} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -139,21 +173,57 @@ export function InternalMeetingForm() {
               <FormField control={form.control} name="action_points" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Action Points</FormLabel>
-                  <FormControl><Textarea placeholder="Action points…" rows={3} {...field} /></FormControl>
+                  <FormControl><Textarea placeholder="Key action points…" rows={3} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {createMutation.isPending || updateMutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Meeting'}
-                </Button>
-              </div>
             </form>
           </Form>
         </CardContent>
       </Card>
+
+      {/* Attachments */}
+      <Card>
+        <CardHeader className="py-3 px-5">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Paperclip size={14} className="text-muted-foreground" />
+            Attachments
+            {pendingFiles.length > 0 && (
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{pendingFiles.length} file{pendingFiles.length !== 1 ? 's' : ''} selected</span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <Separator />
+        <CardContent className="pt-4">
+          <FileUpload files={pendingFiles} onChange={setPendingFiles} />
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
+        <Button type="button" onClick={handlePreview}>
+          Preview & Save →
+        </Button>
+      </div>
+
+      <MeetingPreviewDialog
+        open={preview}
+        onClose={() => setPreview(false)}
+        onConfirm={handleConfirm}
+        isSaving={isSaving}
+        title={values.title ?? ''}
+        meetingType="Internal Meeting"
+        isEdit={isEdit}
+        pendingFiles={pendingFiles}
+        fields={[
+          { label: 'Partnership', value: partnershipName(values.partnership_id) },
+          { label: 'Date', value: values.meeting_date },
+          { label: 'Location', value: values.location },
+          { label: 'Agenda', value: values.agenda },
+          { label: 'Minutes', value: values.minutes },
+          { label: 'Action Points', value: values.action_points },
+        ]}
+      />
     </div>
   )
 }

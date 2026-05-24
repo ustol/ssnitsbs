@@ -178,8 +178,15 @@ export interface MeetingAttachment {
   file_name: string
   file_path: string
   file_size: number | null
+  mime_type: string | null
+  file_type: 'image' | 'audio' | 'document'
+  is_display_picture: boolean
   uploaded_by: string | null
   created_at: string
+}
+
+export interface MeetingAttachmentWithUrl extends MeetingAttachment {
+  url: string
 }
 
 export interface StatusHistory {
@@ -201,10 +208,12 @@ export interface StatusHistoryWithRelations extends StatusHistory {
 export interface AuditLog {
   id: string
   user_id: string | null
+  user_name: string | null
   action: string
-  table_name: string | null
-  record_id: string | null
-  details: Json | null
+  entity_type: string
+  entity_id: string | null
+  entity_name: string | null
+  changes: Json | null
   created_at: string
 }
 

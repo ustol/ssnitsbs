@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2, MessageSquare,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
-  Activity, type LucideIcon,
+  Activity, ClipboardList, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -154,6 +154,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/stakeholders/external" label="External Stakeholders" icon={Building} />
             <SidebarLink to="/stakeholders/internal" label="Internal Stakeholders" icon={UserCheck} />
             <SidebarLink to="/users" label="Users" icon={Users} />
+            <SidebarLink to="/audit" label="Audit Trail" icon={ClipboardList} />
             <SidebarLink to="/settings" label="Settings" icon={Settings} />
           </ul>
         </nav>
