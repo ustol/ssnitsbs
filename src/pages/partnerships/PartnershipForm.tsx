@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, Check } from 'lucide-react'
+import { toast } from 'sonner'
 import { usePartnership, useCreatePartnership, useUpdatePartnership } from '@/hooks/usePartnerships'
 import { useInternalStakeholders, useExternalStakeholders } from '@/hooks/useStakeholders'
 import { writeAudit } from '@/hooks/useAuditLog'
@@ -32,17 +33,24 @@ async function syncStakeholders(
   externalIds: string[],
   internalIds: string[],
 ) {
-  await supabase.from('partnership_external_stakeholders').delete().eq('partnership_id', partnershipId)
-  await supabase.from('partnership_internal_stakeholders').delete().eq('partnership_id', partnershipId)
+  const { error: delExt } = await supabase.from('partnership_external_stakeholders').delete().eq('partnership_id', partnershipId)
+  if (delExt) throw new Error(`Failed to clear external stakeholders: ${delExt.message}`)
+
+  const { error: delInt } = await supabase.from('partnership_internal_stakeholders').delete().eq('partnership_id', partnershipId)
+  if (delInt) throw new Error(`Failed to clear internal stakeholders: ${delInt.message}`)
+
   if (externalIds.length > 0) {
-    await supabase.from('partnership_external_stakeholders').insert(
+    const { error } = await supabase.from('partnership_external_stakeholders').insert(
       externalIds.map(stakeholder_id => ({ partnership_id: partnershipId, stakeholder_id })),
     )
+    if (error) throw new Error(`Failed to save external stakeholders: ${error.message}`)
   }
+
   if (internalIds.length > 0) {
-    await supabase.from('partnership_internal_stakeholders').insert(
-      internalIds.map(stakeholder_id => ({ partnership_id: partnershipId, stakeholder_id })),
+    const { error } = await supabase.from('partnership_internal_stakeholders').insert(
+      internalIds.map(internal_stakeholder_id => ({ partnership_id: partnershipId, internal_stakeholder_id })),
     )
+    if (error) throw new Error(`Failed to save internal stakeholders: ${error.message}`)
   }
 }
 
@@ -166,17 +174,21 @@ export function PartnershipForm() {
       start_date: values.start_date || null,
     }
 
-    if (isEdit) {
-      await updateMutation.mutateAsync({ id: id!, values: payload })
-      await syncStakeholders(id!, values.external_stakeholder_ids, values.internal_stakeholder_ids)
-      writeAudit({ action: 'updated', entity_type: 'partnership', entity_id: id!, entity_name: values.title })
-      navigate(`/partnerships/${id}`)
-    } else {
-      const created = await createMutation.mutateAsync(payload) as Record<string, unknown>
-      const newId = created.id as string
-      await syncStakeholders(newId, values.external_stakeholder_ids, values.internal_stakeholder_ids)
-      writeAudit({ action: 'created', entity_type: 'partnership', entity_id: newId, entity_name: values.title })
-      navigate(`/partnerships/${newId}`, { replace: true })
+    try {
+      if (isEdit) {
+        await updateMutation.mutateAsync({ id: id!, values: payload })
+        await syncStakeholders(id!, values.external_stakeholder_ids, values.internal_stakeholder_ids)
+        writeAudit({ action: 'updated', entity_type: 'partnership', entity_id: id!, entity_name: values.title })
+        navigate(`/partnerships/${id}`)
+      } else {
+        const created = await createMutation.mutateAsync(payload) as Record<string, unknown>
+        const newId = created.id as string
+        await syncStakeholders(newId, values.external_stakeholder_ids, values.internal_stakeholder_ids)
+        writeAudit({ action: 'created', entity_type: 'partnership', entity_id: newId, entity_name: values.title })
+        navigate(`/partnerships/${newId}`, { replace: true })
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save partnership')
     }
   }
 
