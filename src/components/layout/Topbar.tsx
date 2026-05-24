@@ -33,8 +33,9 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
       className="fixed top-0 left-0 right-0 z-[1050] flex items-center gap-2 px-3.5"
       style={{
         height: '52px',
-        backgroundColor: '#0c0c0e',
+        backgroundColor: '#0f0f11',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 1px 0 0 rgba(232,98,26,0.5)',
       }}
     >
       {/* Toggle */}
@@ -50,13 +51,20 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
 
       {/* Brand */}
       <Link to="/dashboard" className="flex items-center gap-2.5 no-underline mr-1">
-        <div className="w-7 h-7 rounded-md bg-brand flex items-center justify-center text-white font-extrabold text-xs shrink-0">
+        <div
+          className="w-7 h-7 rounded-md flex items-center justify-center text-white font-extrabold text-xs shrink-0"
+          style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)' }}
+        >
           S
         </div>
-        <div className="hidden md:block w-px h-4 shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }} />
-        <span className="hidden md:block text-[0.76rem]" style={{ color: 'rgba(255,255,255,0.38)', letterSpacing: '0.01em' }}>
-          Special Business Support
-        </span>
+        <div className="hidden md:flex flex-col justify-center">
+          <span className="text-[0.76rem] font-semibold leading-none" style={{ color: 'rgba(255,255,255,0.88)' }}>
+            SSNIT SBS
+          </span>
+          <span className="text-[0.6rem] leading-none mt-0.5" style={{ color: 'rgba(255,255,255,0.32)' }}>
+            Strategic Business Support
+          </span>
+        </div>
       </Link>
 
       <div className="ml-auto flex items-center gap-2">
@@ -76,7 +84,10 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
               className="flex items-center gap-2 rounded-lg px-2 py-1 text-[0.775rem] font-medium transition-colors"
               style={{ background: 'rgba(255,255,255,0.055)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.78)', cursor: 'pointer', maxWidth: '200px' }}
             >
-              <div className="w-7 h-7 rounded-full bg-brand flex items-center justify-center text-white text-[0.7rem] font-bold shrink-0">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[0.7rem] font-bold shrink-0"
+                style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)' }}
+              >
                 {getInitials(profile?.full_name ?? 'U')}
               </div>
               <span className="hidden sm:block truncate">{profile?.full_name ?? 'User'}</span>

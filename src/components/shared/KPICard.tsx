@@ -14,26 +14,41 @@ interface KPICardProps {
   className?: string
 }
 
-const variantClasses = {
-  default: 'border-l-zinc-300',
-  brand: 'border-l-brand',
-  success: 'border-l-green-500',
-  warning: 'border-l-amber-500',
-  danger: 'border-l-red-500',
-}
-
-const iconVariantClasses = {
-  default: 'bg-zinc-100 text-zinc-600',
-  brand: 'bg-brand/10 text-brand',
-  success: 'bg-green-50 text-green-600',
-  warning: 'bg-amber-50 text-amber-600',
-  danger: 'bg-red-50 text-red-600',
+const variantStyles = {
+  default: {
+    border: 'border-l-zinc-300',
+    icon: 'bg-zinc-100 text-zinc-500',
+    value: '',
+  },
+  brand: {
+    border: 'border-l-brand',
+    icon: 'text-white',
+    iconBg: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)',
+    value: 'text-brand',
+  },
+  success: {
+    border: 'border-l-green-500',
+    icon: 'bg-green-50 text-green-600',
+    value: '',
+  },
+  warning: {
+    border: 'border-l-amber-500',
+    icon: 'bg-amber-50 text-amber-600',
+    value: '',
+  },
+  danger: {
+    border: 'border-l-red-500',
+    icon: 'bg-red-50 text-red-600',
+    value: '',
+  },
 }
 
 export function KPICard({ title, value, subtitle, icon, trend, variant = 'default', loading, className }: KPICardProps) {
+  const styles = variantStyles[variant]
+
   if (loading) {
     return (
-      <Card className={cn('border-l-4', variantClasses[variant], className)}>
+      <Card className={cn('border-l-4', styles.border, className)}>
         <CardContent className="p-5">
           <div className="flex items-start justify-between">
             <div className="space-y-2">
@@ -49,12 +64,12 @@ export function KPICard({ title, value, subtitle, icon, trend, variant = 'defaul
   }
 
   return (
-    <Card className={cn('border-l-4', variantClasses[variant], className)}>
+    <Card className={cn('border-l-4', styles.border, className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">{title}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide truncate">{title}</p>
+            <p className={cn('mt-1 text-2xl font-bold tabular-nums', styles.value)}>{value}</p>
             {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
             {trend && (
               <p className={cn('mt-1 text-xs font-medium', trend.value >= 0 ? 'text-green-600' : 'text-red-600')}>
@@ -63,7 +78,10 @@ export function KPICard({ title, value, subtitle, icon, trend, variant = 'defaul
             )}
           </div>
           {icon && (
-            <div className={cn('shrink-0 flex h-9 w-9 items-center justify-center rounded-lg', iconVariantClasses[variant])}>
+            <div
+              className={cn('shrink-0 flex h-9 w-9 items-center justify-center rounded-lg', styles.icon)}
+              style={'iconBg' in styles ? { background: styles.iconBg } : undefined}
+            >
               {icon}
             </div>
           )}

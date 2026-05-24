@@ -123,12 +123,18 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
           }
         `}</style>
 
+        {/* Orange top accent */}
+        <div style={{ height: '2px', background: 'linear-gradient(90deg, #E8621A 0%, rgba(232,98,26,0.3) 100%)' }} />
+
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-3.5 py-3 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-          <div className="w-7 h-7 bg-brand rounded-md flex items-center justify-center text-white font-extrabold text-xs shrink-0">S</div>
+          <div
+            className="w-7 h-7 rounded-md flex items-center justify-center text-white font-extrabold text-xs shrink-0"
+            style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)', boxShadow: '0 0 12px rgba(232,98,26,0.4)' }}
+          >S</div>
           <div>
             <div className="text-[0.8rem] font-semibold leading-tight" style={{ color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.01em' }}>SSNIT SBS</div>
-            <div className="text-[0.65rem] leading-none mt-px" style={{ color: 'rgba(255,255,255,0.28)' }}>Strategic Partnership System</div>
+            <div className="text-[0.65rem] leading-none mt-px" style={{ color: 'rgba(255,255,255,0.28)' }}>Strategic Business Support</div>
           </div>
         </div>
 
@@ -164,7 +170,10 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
           className="flex items-center gap-2 px-3.5 py-2.5 shrink-0"
           style={{ borderTop: '1px solid rgba(255,255,255,0.055)' }}
         >
-          <div className="w-6.5 h-6.5 w-[26px] h-[26px] rounded-full bg-brand flex items-center justify-center text-white text-[0.65rem] font-bold shrink-0">
+          <div
+            className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-white text-[0.65rem] font-bold shrink-0"
+            style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)' }}
+          >
             {getInitials(profile?.full_name ?? 'U')}
           </div>
           <div className="min-w-0 flex-1">

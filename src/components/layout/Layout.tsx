@@ -8,7 +8,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-[#f4f4f5]">
+    <div className="min-h-screen bg-[#f5f4f2]">
       {/* Topbar */}
       <Topbar
         onToggleSidebar={() => {
