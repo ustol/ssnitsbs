@@ -75,7 +75,7 @@ export function PartnershipView() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-2 space-y-0">
           <CardHeader className="py-3 px-5">
             <CardTitle className="text-sm font-semibold">Details</CardTitle>
           </CardHeader>
@@ -121,6 +121,50 @@ export function PartnershipView() {
           </Card>
         </div>
       </div>
+
+      {/* Stakeholders */}
+      {((p.internal_stakeholders?.length ?? 0) > 0 || (p.external_stakeholders?.length ?? 0) > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {(p.internal_stakeholders?.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader className="py-3 px-5">
+                <CardTitle className="text-sm font-semibold">Internal Stakeholders</CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 pb-3">
+                <ul className="space-y-2">
+                  {p.internal_stakeholders!.map(({ stakeholder: s }) => (
+                    <li key={s.id} className="flex flex-col">
+                      <span className="text-[0.8125rem] font-medium">{s.name}</span>
+                      {(s.department || s.title) && (
+                        <span className="text-xs text-muted-foreground">{s.department ?? s.title}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+          {(p.external_stakeholders?.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader className="py-3 px-5">
+                <CardTitle className="text-sm font-semibold">External Stakeholders</CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 pb-3">
+                <ul className="space-y-2">
+                  {p.external_stakeholders!.map(({ stakeholder: s }) => (
+                    <li key={s.id} className="flex flex-col">
+                      <span className="text-[0.8125rem] font-medium">{s.name}</span>
+                      {s.organization && (
+                        <span className="text-xs text-muted-foreground">{s.organization}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <ConfirmDelete
         open={confirmDelete}

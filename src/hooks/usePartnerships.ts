@@ -32,6 +32,9 @@ async function fetchPartnership(id: string): Promise<PartnershipWithRelations> {
       external_stakeholders:partnership_external_stakeholders(
         stakeholder:external_stakeholders(*)
       ),
+      internal_stakeholders:partnership_internal_stakeholders(
+        stakeholder:internal_stakeholders(*)
+      ),
       external_meetings(*),
       internal_meetings(*)
     `)

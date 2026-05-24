@@ -59,9 +59,15 @@ export interface Partnership {
   updated_at: string
 }
 
+export interface PartnershipInternalStakeholder {
+  partnership_id: string
+  stakeholder_id: string
+}
+
 export interface PartnershipWithRelations extends Partnership {
   status: StatusLookup | null
   external_stakeholders?: { stakeholder: ExternalStakeholder }[]
+  internal_stakeholders?: { stakeholder: InternalStakeholder }[]
   external_meetings?: ExternalMeeting[]
   internal_meetings?: InternalMeeting[]
 }
