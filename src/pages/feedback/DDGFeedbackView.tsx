@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2, CheckCircle, Circle } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, CheckCircle, Circle, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useDDGFeedback, useDeleteDDGFeedback, useMarkDDGActioned } from '@/hooks/useDDGFeedback'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -28,6 +30,11 @@ export function DDGFeedbackView() {
   const markMutation = useMarkDDGActioned()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href)
+    toast.success('Link copied to clipboard')
+  }
+
   if (isLoading) {
     return <div className="p-6 space-y-4"><Skeleton className="h-7 w-64" /><Skeleton className="h-64 w-full rounded-xl" /></div>
   }
@@ -46,8 +53,11 @@ export function DDGFeedbackView() {
         title={f.feedback_type as string}
         subtitle={f.received_date ? formatDate(f.received_date as string) : undefined}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back</Button>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-3.5 w-3.5 mr-1.5" />Share
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -92,7 +102,12 @@ export function DDGFeedbackView() {
       <ConfirmDelete
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        onConfirm={() => deleteMutation.mutate(id!, { onSuccess: () => navigate('/feedback/ddg', { replace: true }) })}
+        onConfirm={() => deleteMutation.mutate(id!, {
+          onSuccess: () => {
+            writeAudit({ action: 'deleted', entity_type: 'ddg_feedback', entity_id: id!, entity_name: f.summary as string })
+            navigate('/feedback/ddg', { replace: true })
+          },
+        })}
         loading={deleteMutation.isPending}
       />
     </div>

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2, CalendarCheck, Users } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, CalendarCheck, Users, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { usePartnership, useDeletePartnership } from '@/hooks/usePartnerships'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
@@ -27,6 +29,11 @@ export function PartnershipView() {
   const deleteMutation = useDeletePartnership()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href)
+    toast.success('Link copied to clipboard')
+  }
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -50,9 +57,12 @@ export function PartnershipView() {
         title={p.title}
         subtitle={p.organization ?? undefined}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-3.5 w-3.5 mr-1.5" />Share
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to={`/partnerships/${id}/edit`}><Pencil className="h-3.5 w-3.5 mr-1.5" />Edit</Link>
@@ -116,7 +126,12 @@ export function PartnershipView() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         onConfirm={() =>
-          deleteMutation.mutate(id!, { onSuccess: () => navigate('/partnerships', { replace: true }) })
+          deleteMutation.mutate(id!, {
+            onSuccess: () => {
+              writeAudit({ action: 'deleted', entity_type: 'partnership', entity_id: id!, entity_name: p.title })
+              navigate('/partnerships', { replace: true })
+            },
+          })
         }
         loading={deleteMutation.isPending}
         description="This partnership and all related meetings will be permanently deleted."

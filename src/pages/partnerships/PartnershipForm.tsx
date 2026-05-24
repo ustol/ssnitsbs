@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft } from 'lucide-react'
 import { usePartnership, useCreatePartnership, useUpdatePartnership } from '@/hooks/usePartnerships'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -55,10 +56,12 @@ export function PartnershipForm() {
 
     if (isEdit) {
       await updateMutation.mutateAsync({ id: id!, values: payload })
+      writeAudit({ action: 'updated', entity_type: 'partnership', entity_id: id!, entity_name: values.title })
       navigate(`/partnerships/${id}`)
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const created = await createMutation.mutateAsync(payload) as any
+      writeAudit({ action: 'created', entity_type: 'partnership', entity_id: created.id, entity_name: created.title })
       navigate(`/partnerships/${created.id}`, { replace: true })
     }
   }

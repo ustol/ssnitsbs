@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2, Paperclip, Image, Music, FileText, Star, Download, ClipboardList, Plus, Minus } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Paperclip, Image, Music, FileText, Star, Download, ClipboardList, Plus, Minus, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useInternalMeeting, useDeleteInternalMeeting } from '@/hooks/useMeetings'
 import { useMeetingAttachments, useDeleteMeetingAttachment, useSetDisplayPicture } from '@/hooks/useMeetingAttachments'
-import { useEntityAuditLog } from '@/hooks/useAuditLog'
+import { useEntityAuditLog, writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
@@ -87,6 +88,11 @@ export function InternalMeetingView() {
   const setDisplayPicture = useSetDisplayPicture()
   const { data: auditEntries = [] } = useEntityAuditLog('internal_meeting', id!)
 
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href)
+    toast.success('Link copied to clipboard')
+  }
+
   if (isLoading) {
     return <div className="p-4 sm:p-6 space-y-4"><Skeleton className="h-7 w-64" /><Skeleton className="h-64 w-full rounded-xl" /></div>
   }
@@ -119,6 +125,7 @@ export function InternalMeetingView() {
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back</Button>
+            <Button variant="outline" size="sm" onClick={handleShare}><Share2 className="h-3.5 w-3.5 mr-1.5" />Share</Button>
             <Button variant="outline" size="sm" asChild>
               <Link to={`/meetings/internal/${id}/edit`}><Pencil className="h-3.5 w-3.5 mr-1.5" />Edit</Link>
             </Button>
@@ -252,7 +259,12 @@ export function InternalMeetingView() {
       <ConfirmDelete
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        onConfirm={() => deleteMutation.mutate(id!, { onSuccess: () => navigate('/meetings/internal', { replace: true }) })}
+        onConfirm={() => deleteMutation.mutate(id!, {
+          onSuccess: () => {
+            writeAudit({ action: 'deleted', entity_type: 'internal_meeting', entity_id: id!, entity_name: m.title as string })
+            navigate('/meetings/internal', { replace: true })
+          },
+        })}
         loading={deleteMutation.isPending}
       />
     </div>

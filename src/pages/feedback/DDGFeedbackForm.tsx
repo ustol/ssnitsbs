@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft } from 'lucide-react'
 import { useDDGFeedback, useCreateDDGFeedback, useUpdateDDGFeedback } from '@/hooks/useDDGFeedback'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { usePartnerships } from '@/hooks/usePartnerships'
 import { useExternalStakeholders } from '@/hooks/useStakeholders'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -68,9 +69,11 @@ export function DDGFeedbackForm() {
     }
     if (isEdit) {
       await updateMutation.mutateAsync({ id: id!, values: payload })
+      writeAudit({ action: 'updated', entity_type: 'ddg_feedback', entity_id: id!, entity_name: values.summary })
       navigate(`/feedback/ddg/${id}`)
     } else {
       const created = await createMutation.mutateAsync(payload) as Record<string, unknown>
+      writeAudit({ action: 'created', entity_type: 'ddg_feedback', entity_id: created.id as string, entity_name: values.summary })
       navigate(`/feedback/ddg/${created.id}`, { replace: true })
     }
   }
