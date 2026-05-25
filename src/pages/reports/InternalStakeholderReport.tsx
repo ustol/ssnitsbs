@@ -1,6 +1,6 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useIntStakeholderReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const COLORS = ['#3b82f6','#E8621A','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316']
@@ -71,15 +71,17 @@ export function InternalStakeholderReport() {
             <div className="space-y-3">
               <SectionTitle>Headcount by Department</SectionTitle>
               {data.byDepartment.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={data.byDepartment} layout="vertical" barSize={16}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Staff" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ChartWrapper minWidth={340}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={data.byDepartment} layout="vertical" barSize={16}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Staff" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartWrapper>
               ) : <p className="text-sm text-zinc-400 py-8 text-center">No data</p>}
             </div>
 
@@ -87,23 +89,25 @@ export function InternalStakeholderReport() {
             <div className="space-y-3">
               <SectionTitle>Department Distribution</SectionTitle>
               {data.byDepartment.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={data.byDepartment.slice(0, 8)}
-                      cx="50%" cy="50%"
-                      innerRadius={60} outerRadius={100}
-                      dataKey="value"
-                      paddingAngle={2}
-                    >
-                      {data.byDepartment.slice(0, 8).map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [v, n]} />
-                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <ChartWrapper minWidth={280}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={data.byDepartment.slice(0, 8)}
+                        cx="50%" cy="50%"
+                        innerRadius={60} outerRadius={100}
+                        dataKey="value"
+                        paddingAngle={2}
+                      >
+                        {data.byDepartment.slice(0, 8).map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [v, n]} />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartWrapper>
               ) : <p className="text-sm text-zinc-400 py-8 text-center">No data</p>}
             </div>
           </div>

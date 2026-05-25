@@ -163,9 +163,19 @@ export function AISummaryCard({ prompt }: { prompt: string | null }) {
 
 // ─── Report Table ─────────────────────────────────────────────────────────────
 
+export function ChartWrapper({ children, minWidth = 300 }: { children: React.ReactNode; minWidth?: number }) {
+  return (
+    <div className="overflow-x-auto w-full">
+      <div style={{ minWidth }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export function ReportTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
   return (
-    <div className="overflow-x-auto -mx-1 rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-zinc-50 border-b">

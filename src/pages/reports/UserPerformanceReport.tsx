@@ -1,6 +1,6 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts'
 import { useUserPerformanceReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, Info } from 'lucide-react'
 
@@ -97,19 +97,21 @@ export function UserPerformanceReport() {
             <div className="space-y-3">
               <SectionTitle>Activity Breakdown by User</SectionTitle>
               {data.chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={data.chartData} barSize={20}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="Partnerships"   stackId="a" fill="#E8621A" />
-                    <Bar dataKey="Ext Meetings"   stackId="a" fill="#3b82f6" />
-                    <Bar dataKey="Int Meetings"   stackId="a" fill="#10b981" />
-                    <Bar dataKey="DDG"            stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ChartWrapper minWidth={280}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={data.chartData} barSize={20}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="Partnerships"   stackId="a" fill="#E8621A" />
+                      <Bar dataKey="Ext Meetings"   stackId="a" fill="#3b82f6" />
+                      <Bar dataKey="Int Meetings"   stackId="a" fill="#10b981" />
+                      <Bar dataKey="DDG"            stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartWrapper>
               ) : (
                 <div className="py-12 text-center">
                   <p className="text-sm text-zinc-500 font-medium">No attributed activity yet</p>
@@ -122,16 +124,18 @@ export function UserPerformanceReport() {
             <div className="space-y-3">
               <SectionTitle>Attributed Contribution Share</SectionTitle>
               {pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={50} dataKey="value" paddingAngle={2}
-                      label={({ name, percent }) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}>
-                      {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <ChartWrapper minWidth={280}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={50} dataKey="value" paddingAngle={2}
+                        label={({ name, percent }) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}>
+                        {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartWrapper>
               ) : (
                 <div className="py-12 text-center">
                   <p className="text-sm text-zinc-400">No attributed data</p>

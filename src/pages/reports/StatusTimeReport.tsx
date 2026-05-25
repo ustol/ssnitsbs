@@ -3,7 +3,7 @@ import {
   Cell, AreaChart, Area,
 } from 'recharts'
 import { useStatusTimeReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 type StatusTimeData = NonNullable<ReturnType<typeof useStatusTimeReport>['data']>
@@ -63,22 +63,24 @@ export function StatusTimeReport() {
                 <div className="space-y-3">
                   <SectionTitle>Average Days Spent per Status</SectionTitle>
                   {data.avgByStatus.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={data.avgByStatus} layout="vertical" barSize={18}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                        <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} unit="d" />
-                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={130} />
-                        <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                          formatter={(v, _n, props) => [`${v} days (${props.payload?.transitions} transitions)`, 'Avg Duration']}
-                        />
-                        <Bar dataKey="avgDays" radius={[0, 4, 4, 0]} name="Avg Days">
-                          {data.avgByStatus.map((item, i) => (
-                            <Cell key={i} fill={item.color ?? `hsl(${i * 47}, 65%, 52%)`} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <ChartWrapper minWidth={360}>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={data.avgByStatus} layout="vertical" barSize={18}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} unit="d" />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={130} />
+                          <Tooltip
+                            contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                            formatter={(v, _n, props) => [`${v} days (${props.payload?.transitions} transitions)`, 'Avg Duration']}
+                          />
+                          <Bar dataKey="avgDays" radius={[0, 4, 4, 0]} name="Avg Days">
+                            {data.avgByStatus.map((item, i) => (
+                              <Cell key={i} fill={item.color ?? `hsl(${i * 47}, 65%, 52%)`} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </ChartWrapper>
                   ) : <p className="text-sm text-zinc-400 py-8 text-center">Insufficient data (need 2+ changes per entity)</p>}
                 </div>
 
@@ -86,15 +88,17 @@ export function StatusTimeReport() {
                 <div className="space-y-3">
                   <SectionTitle>Most Common Status Transitions</SectionTitle>
                   {data.topTransitions.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={data.topTransitions} layout="vertical" barSize={14}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                        <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={150} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Count" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <ChartWrapper minWidth={380}>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={data.topTransitions} layout="vertical" barSize={14}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={150} />
+                          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                          <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Count" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </ChartWrapper>
                   ) : <p className="text-sm text-zinc-400 py-8 text-center">No transitions recorded yet</p>}
                 </div>
               </div>
@@ -103,21 +107,23 @@ export function StatusTimeReport() {
               {data.activityByMonth.length > 0 && (
                 <div className="space-y-3">
                   <SectionTitle>Status Change Activity Over Time</SectionTitle>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <AreaChart data={data.activityByMonth}>
-                      <defs>
-                        <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <Area type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={2} fill="url(#actGrad)" name="Status Changes" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <ChartWrapper minWidth={280}>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <AreaChart data={data.activityByMonth}>
+                        <defs>
+                          <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Area type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={2} fill="url(#actGrad)" name="Status Changes" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartWrapper>
                 </div>
               )}
 
