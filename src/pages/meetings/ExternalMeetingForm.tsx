@@ -104,7 +104,7 @@ export function ExternalMeetingForm() {
           }
         }
         writeAudit({ action: 'created', entity_type: 'external_meeting', entity_id: created.id, entity_name: created.title })
-        navigate(`/meetings/external/${created.id}`, { replace: true })
+        navigate('/meetings/external', { replace: true })
       }
     } catch (err) {
       toast.error(`Failed to save meeting: ${(err as Error).message}`)

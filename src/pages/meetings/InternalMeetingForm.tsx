@@ -100,7 +100,7 @@ export function InternalMeetingForm() {
           }
         }
         writeAudit({ action: 'created', entity_type: 'internal_meeting', entity_id: created.id, entity_name: created.title })
-        navigate(`/meetings/internal/${created.id}`, { replace: true })
+        navigate('/meetings/internal', { replace: true })
       }
     } catch (err) {
       toast.error(`Failed to save meeting: ${(err as Error).message}`)
