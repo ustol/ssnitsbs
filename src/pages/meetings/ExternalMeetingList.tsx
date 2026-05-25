@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Eye, Pencil, Trash2, X, Paperclip } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, X, Paperclip, Activity } from 'lucide-react'
 import { useExternalMeetings, useDeleteExternalMeeting } from '@/hooks/useMeetings'
 import { useMeetingAttachmentIndex } from '@/hooks/useMeetingAttachments'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -85,9 +85,14 @@ export function ExternalMeetingList() {
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+            <Link to={`/status-tracker?q=${encodeURIComponent(row.title as string)}`} onClick={e => e.stopPropagation()}>
+              <Activity className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
         </div>
       ),
-      className: 'w-[100px]',
+      className: 'w-[130px]',
     },
   ]
 
