@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable, Column } from '@/components/shared/DataTable'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
+import { QuickStatusDialog } from '@/components/shared/QuickStatusDialog'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
 
@@ -20,6 +21,7 @@ export function ExternalMeetingList() {
   const { data: attachedIds = new Set<string>() } = useMeetingAttachmentIndex('external')
   const deleteMutation = useDeleteExternalMeeting()
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [statusRow, setStatusRow] = useState<Row | null>(null)
 
   const filtered = partnershipFilter
     ? data.filter(row => (row as Row).partnership_id === partnershipFilter)
@@ -85,10 +87,8 @@ export function ExternalMeetingList() {
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-            <Link to={`/status-tracker?q=${encodeURIComponent(row.title as string)}`} onClick={e => e.stopPropagation()}>
-              <Activity className="h-3.5 w-3.5" />
-            </Link>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setStatusRow(row)}>
+            <Activity className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),
@@ -130,6 +130,19 @@ export function ExternalMeetingList() {
         onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId, { onSuccess: () => setDeleteId(null) }) }}
         loading={deleteMutation.isPending}
       />
+      {statusRow && (
+        <QuickStatusDialog
+          open={!!statusRow}
+          onClose={() => setStatusRow(null)}
+          meetingId={statusRow.id as string}
+          meetingTitle={statusRow.title as string}
+          meetingType="external"
+          currentStatusId={(statusRow.status_id as string | null) ?? null}
+          currentStatusName={(statusRow.status as { name: string } | null)?.name ?? null}
+          currentStatusColor={(statusRow.status as { color: string } | null)?.color ?? null}
+          currentDate={(statusRow.status_date as string | null) ?? null}
+        />
+      )}
     </div>
   )
 }
