@@ -97,7 +97,7 @@ export function QuickStatusDialog({
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">New status</label>
             <Select value={statusId} onValueChange={setStatusId} disabled={saving}>
-              <SelectTrigger className="h-8 text-sm">
+              <SelectTrigger className="h-9 text-sm px-3">
                 <SelectValue placeholder="Select status…" />
               </SelectTrigger>
               <SelectContent>
@@ -116,7 +116,7 @@ export function QuickStatusDialog({
               value={date}
               onChange={e => setDate(e.target.value)}
               disabled={saving}
-              className="h-8 text-sm"
+              className="h-9 text-sm px-3"
             />
           </div>
         </div>
