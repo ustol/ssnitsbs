@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { UserPlus, Pencil, Eye, EyeOff } from 'lucide-react'
-import { useUsers, useUpdateProfile, useCreateUser } from '@/hooks/useUsers'
+import { UserPlus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react'
+import { useUsers, useUpdateProfile, useCreateUser, useDeleteUser } from '@/hooks/useUsers'
 import { useAuth } from '@/hooks/useAuth'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable, Column } from '@/components/shared/DataTable'
+import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -39,8 +40,10 @@ export function UserList() {
   const { profile: currentProfile } = useAuth()
   const updateMutation = useUpdateProfile()
   const createMutation = useCreateUser()
+  const deleteMutation = useDeleteUser()
 
   const [editTarget, setEditTarget] = useState<Profile | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
@@ -113,14 +116,23 @@ export function UserList() {
       header: '',
       cell: row => (
         currentProfile?.role === 'admin' ? (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-0.5">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); openEdit(row) }}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>
+            {row.id !== currentProfile?.id && (
+              <Button
+                variant="ghost" size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+                onClick={e => { e.stopPropagation(); setDeleteTarget(row) }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         ) : null
       ),
-      className: 'w-[60px]',
+      className: 'w-[90px]',
     },
   ]
 
@@ -188,6 +200,19 @@ export function UserList() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete confirmation ── */}
+      <ConfirmDelete
+        open={!!deleteTarget}
+        onOpenChange={open => !open && setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+          }
+        }}
+        loading={deleteMutation.isPending}
+        description={deleteTarget ? `This will permanently delete ${deleteTarget.full_name ?? deleteTarget.email ?? 'this user'} and cannot be undone.` : undefined}
+      />
 
       {/* ── Create dialog ── */}
       <Dialog open={createOpen} onOpenChange={open => !open && setCreateOpen(false)}>

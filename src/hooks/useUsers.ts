@@ -29,6 +29,26 @@ export function useUpdateProfile() {
   })
 }
 
+export function useDeleteUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/delete-user?id=${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const err = await res.json() as { error?: string }
+        throw new Error(err.error ?? 'Failed to delete user')
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEY] })
+      toast.success('User deleted')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}
+
 export interface CreateUserPayload {
   surname: string
   first_name: string
