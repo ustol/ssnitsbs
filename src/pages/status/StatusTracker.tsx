@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Network, Building2, Users2, History } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePartnerships, useUpdatePartnership } from '@/hooks/usePartnerships'
-import { useExternalMeetings, useUpdateExternalMeeting, useInternalMeetings, useUpdateInternalMeeting } from '@/hooks/useMeetings'
+import { useExternalMeetings, useInternalMeetings } from '@/hooks/useMeetings'
 import { useStatusLookup } from '@/hooks/useSettings'
 import { useStatusHistory, useCreateStatusHistory } from '@/hooks/useStatusHistory'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -15,8 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { StatusLookup, StatusHistoryWithRelations } from '@/types/database'
 
 const NONE = '__none__'
-
-type EntityType = 'partnership' | 'external_meeting' | 'internal_meeting'
 
 // ─── Status update cell ────────────────────────────────────────────────────
 
@@ -80,13 +78,12 @@ function StatusUpdateCell({ currentStatusId, currentDate, statuses, onSave }: {
 
 // ─── Status history modal ──────────────────────────────────────────────────
 
-function StatusHistoryModal({ entityType, entityId, entityTitle }: {
-  entityType: EntityType
+function StatusHistoryModal({ entityId, entityTitle }: {
   entityId: string
   entityTitle: string
 }) {
   const [open, setOpen] = useState(false)
-  const { data: history = [], isLoading } = useStatusHistory(entityType, entityId, open)
+  const { data: history = [], isLoading } = useStatusHistory('partnership', entityId, open)
 
   function daysBetween(a: string, b: string) {
     return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000)
@@ -146,21 +143,12 @@ function StatusHistoryModal({ entityType, entityId, entityTitle }: {
   )
 }
 
-// ─── Type badge ────────────────────────────────────────────────────────────
-
-function TypeBadge({ type }: { type: EntityType }) {
-  if (type === 'partnership')
-    return <span className="text-[0.68rem] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full whitespace-nowrap">Partnership</span>
-  if (type === 'external_meeting')
-    return <span className="text-[0.68rem] font-semibold text-sky-700 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full whitespace-nowrap">External Mtg</span>
-  return <span className="text-[0.68rem] font-semibold text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">Internal Mtg</span>
-}
-
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export function StatusTracker() {
   const { user } = useAuth()
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(searchParams.get('q') ?? '')
   const q = search.toLowerCase()
 
   const { data: allStatuses = [] } = useStatusLookup()
@@ -169,23 +157,27 @@ export function StatusTracker() {
   const { data: partnerships = [], isLoading: loadingP } = usePartnerships()
   const updatePartnership = useUpdatePartnership()
 
-  const { data: extMeetings = [], isLoading: loadingExt } = useExternalMeetings()
-  const updateExt = useUpdateExternalMeeting()
-
-  const { data: intMeetings = [], isLoading: loadingInt } = useInternalMeetings()
-  const updateInt = useUpdateInternalMeeting()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: extMeetings = [] } = useExternalMeetings() as { data: any[] }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: intMeetings = [] } = useInternalMeetings() as { data: any[] }
 
   const createHistory = useCreateStatusHistory()
 
-  // Group meetings by partnership_id
+  // Group meetings by partnership_id, sorted newest first
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const extByPartnership = useMemo<Record<string, any[]>>(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const map: Record<string, any[]> = {}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const m of extMeetings as any[]) {
-      const pid = m.partnership_id ?? '__unaffiliated__'
-      ;(map[pid] ??= []).push(m)
+    for (const m of extMeetings) {
+      if (!m.partnership_id) continue
+      ;(map[m.partnership_id] ??= []).push(m)
+    }
+    for (const key of Object.keys(map)) {
+      map[key].sort((a: { meeting_date: string | null }, b: { meeting_date: string | null }) =>
+        (b.meeting_date ?? '') > (a.meeting_date ?? '') ? 1 : -1
+      )
     }
     return map
   }, [extMeetings])
@@ -195,9 +187,14 @@ export function StatusTracker() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const map: Record<string, any[]> = {}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const m of intMeetings as any[]) {
-      const pid = m.partnership_id ?? '__unaffiliated__'
-      ;(map[pid] ??= []).push(m)
+    for (const m of intMeetings) {
+      if (!m.partnership_id) continue
+      ;(map[m.partnership_id] ??= []).push(m)
+    }
+    for (const key of Object.keys(map)) {
+      map[key].sort((a: { meeting_date: string | null }, b: { meeting_date: string | null }) =>
+        (b.meeting_date ?? '') > (a.meeting_date ?? '') ? 1 : -1
+      )
     }
     return map
   }, [intMeetings])
@@ -209,6 +206,7 @@ export function StatusTracker() {
     if (!q) return all
     return all.filter(p => {
       if (p.title?.toLowerCase().includes(q) || p.organization?.toLowerCase().includes(q)) return true
+      // Also match if any of the partnership's meetings match the search
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const extHit = (extByPartnership[p.id] ?? []).some((m: any) => m.title?.toLowerCase().includes(q))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,25 +214,6 @@ export function StatusTracker() {
       return extHit || intHit
     })
   }, [partnerships, extByPartnership, intByPartnership, q])
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const unaffiliatedExt = useMemo<any[]>(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = extByPartnership['__unaffiliated__'] ?? []
-    if (!q) return rows
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return rows.filter((m: any) => m.title?.toLowerCase().includes(q))
-  }, [extByPartnership, q])
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const unaffiliatedInt = useMemo<any[]>(() => {
-    const rows = intByPartnership['__unaffiliated__'] ?? []
-    if (!q) return rows
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return rows.filter((m: any) => m.title?.toLowerCase().includes(q))
-  }, [intByPartnership, q])
-
-  // Save handlers ──────────────────────────────────────────────────────────
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function savePartnership(r: any, newStatusId: string | null, date: string | null) {
@@ -252,46 +231,18 @@ export function StatusTracker() {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function saveExtMeeting(r: any, newStatusId: string | null, date: string | null) {
-    const oldStatusId = r.status_id
-    await updateExt.mutateAsync({ id: r.id, values: { status_id: newStatusId, status_date: date } })
-    if (newStatusId !== oldStatusId) {
-      createHistory.mutateAsync({
-        entity_type: 'external_meeting',
-        entity_id: r.id,
-        from_status_id: oldStatusId,
-        to_status_id: newStatusId,
-        status_date: date,
-        changed_by: user?.id ?? null,
-      }).catch(() => {})
-    }
-  }
+  const isLoading = loadingP
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function saveIntMeeting(r: any, newStatusId: string | null, date: string | null) {
-    const oldStatusId = r.status_id
-    await updateInt.mutateAsync({ id: r.id, values: { status_id: newStatusId, status_date: date } })
-    if (newStatusId !== oldStatusId) {
-      createHistory.mutateAsync({
-        entity_type: 'internal_meeting',
-        entity_id: r.id,
-        from_status_id: oldStatusId,
-        to_status_id: newStatusId,
-        status_date: date,
-        changed_by: user?.id ?? null,
-      }).catch(() => {})
-    }
+  function fmtDate(d: string | null) {
+    if (!d) return '—'
+    return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
-
-  const isLoading = loadingP || loadingExt || loadingInt
-  const hasContent = filteredPartnerships.length > 0 || unaffiliatedExt.length > 0 || unaffiliatedInt.length > 0
 
   return (
     <div className="p-6">
       <PageHeader
         title="Status Tracker"
-        subtitle="Assign or update the engagement status for partnerships and their meetings"
+        subtitle="Assign or update the engagement status for partnerships"
       />
 
       <div className="mb-4">
@@ -304,12 +255,11 @@ export function StatusTracker() {
       </div>
 
       <div className="rounded-lg border bg-background overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b bg-muted/40">
               <th className="w-[44px] px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">#</th>
-              <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Name</th>
-              <th className="w-[130px] px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Type</th>
+              <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Partnership / Meetings</th>
               <th className="w-[180px] px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Current Status</th>
               <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Update Status / Date</th>
               <th className="w-[64px] px-3 py-2.5 text-center text-xs font-medium text-muted-foreground">History</th>
@@ -318,160 +268,74 @@ export function StatusTracker() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-3 py-10 text-center text-sm text-muted-foreground">Loading…</td>
+                <td colSpan={5} className="px-3 py-10 text-center text-sm text-muted-foreground">Loading…</td>
               </tr>
-            ) : !hasContent ? (
+            ) : filteredPartnerships.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={5} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {q ? 'No results match your search.' : 'No partnerships found.'}
                 </td>
               </tr>
             ) : (
-              <>
-                {/* ── Partnership groups ── */}
-                {filteredPartnerships.map((p, pi) => {
-                  const pNameMatch = !q || p.title?.toLowerCase().includes(q) || p.organization?.toLowerCase().includes(q)
-                  // If partnership name matched → show all its meetings; else show only matches
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const pExt: any[] = pNameMatch
-                    ? (extByPartnership[p.id] ?? [])
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    : (extByPartnership[p.id] ?? []).filter((m: any) => m.title?.toLowerCase().includes(q))
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const pInt: any[] = pNameMatch
-                    ? (intByPartnership[p.id] ?? [])
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    : (intByPartnership[p.id] ?? []).filter((m: any) => m.title?.toLowerCase().includes(q))
+              filteredPartnerships.map((p, pi) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const pExt: any[] = extByPartnership[p.id] ?? []
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const pInt: any[] = intByPartnership[p.id] ?? []
 
-                  return (
-                    <React.Fragment key={p.id}>
-                      {/* Partnership row */}
-                      <tr className="border-b bg-muted/20 hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums text-center align-middle">
-                          {pi + 1}
-                        </td>
-                        <td className="px-3 py-2 align-middle">
-                          <div className="flex items-center gap-1.5">
-                            <Network size={12} className="text-muted-foreground/60 shrink-0" />
-                            <Link
-                              to={`/partnerships/${p.id}`}
-                              className="font-medium hover:text-brand transition-colors"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              {p.title}
-                            </Link>
-                            {p.organization && (
-                              <span className="text-xs text-muted-foreground hidden sm:inline">· {p.organization}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 align-middle"><TypeBadge type="partnership" /></td>
-                        <td className="px-3 py-2 align-middle">
-                          {p.status
-                            ? <StatusBadge status={p.status.name} color={p.status.color} />
-                            : <span className="text-muted-foreground text-xs">—</span>}
-                        </td>
-                        <td className="px-3 py-2 align-middle">
-                          <StatusUpdateCell
-                            currentStatusId={p.status_id}
-                            currentDate={p.status_date ?? null}
-                            statuses={statuses}
-                            onSave={(sid, d) => savePartnership(p, sid, d)}
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center align-middle">
-                          <StatusHistoryModal entityType="partnership" entityId={p.id} entityTitle={p.title} />
-                        </td>
-                      </tr>
+                // If search matched a meeting, filter which meetings to show; otherwise show all
+                const showAllMeetings = !q || p.title?.toLowerCase().includes(q) || p.organization?.toLowerCase().includes(q)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const visibleExt = showAllMeetings ? pExt : pExt.filter((m: any) => m.title?.toLowerCase().includes(q))
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const visibleInt = showAllMeetings ? pInt : pInt.filter((m: any) => m.title?.toLowerCase().includes(q))
 
-                      {/* External meeting sub-rows */}
-                      {pExt.map(m => (
-                        <tr key={`ext-${m.id}`} className="border-b hover:bg-sky-50/30 transition-colors">
-                          <td className="px-3 py-1.5" />
-                          <td className="px-3 py-1.5 align-middle">
-                            <div className="flex items-center gap-1.5 pl-6">
-                              <Building2 size={11} className="text-sky-500 shrink-0" />
-                              <Link
-                                to={`/meetings/external/${m.id}`}
-                                className="text-xs text-muted-foreground hover:text-brand transition-colors"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                {m.title}
-                              </Link>
-                            </div>
-                          </td>
-                          <td className="px-3 py-1.5 align-middle"><TypeBadge type="external_meeting" /></td>
-                          <td className="px-3 py-1.5 align-middle">
-                            {m.status
-                              ? <StatusBadge status={m.status.name} color={m.status.color} />
-                              : <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-1.5 align-middle">
-                            <StatusUpdateCell
-                              currentStatusId={m.status_id}
-                              currentDate={m.status_date ?? null}
-                              statuses={statuses}
-                              onSave={(sid, d) => saveExtMeeting(m, sid, d)}
-                            />
-                          </td>
-                          <td className="px-3 py-1.5 text-center align-middle">
-                            <StatusHistoryModal entityType="external_meeting" entityId={m.id} entityTitle={m.title} />
-                          </td>
-                        </tr>
-                      ))}
-
-                      {/* Internal meeting sub-rows */}
-                      {pInt.map(m => (
-                        <tr key={`int-${m.id}`} className="border-b hover:bg-violet-50/30 transition-colors">
-                          <td className="px-3 py-1.5" />
-                          <td className="px-3 py-1.5 align-middle">
-                            <div className="flex items-center gap-1.5 pl-6">
-                              <Users2 size={11} className="text-violet-500 shrink-0" />
-                              <Link
-                                to={`/meetings/internal/${m.id}`}
-                                className="text-xs text-muted-foreground hover:text-brand transition-colors"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                {m.title}
-                              </Link>
-                            </div>
-                          </td>
-                          <td className="px-3 py-1.5 align-middle"><TypeBadge type="internal_meeting" /></td>
-                          <td className="px-3 py-1.5 align-middle">
-                            {m.status
-                              ? <StatusBadge status={m.status.name} color={m.status.color} />
-                              : <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-1.5 align-middle">
-                            <StatusUpdateCell
-                              currentStatusId={m.status_id}
-                              currentDate={m.status_date ?? null}
-                              statuses={statuses}
-                              onSave={(sid, d) => saveIntMeeting(m, sid, d)}
-                            />
-                          </td>
-                          <td className="px-3 py-1.5 text-center align-middle">
-                            <StatusHistoryModal entityType="internal_meeting" entityId={m.id} entityTitle={m.title} />
-                          </td>
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  )
-                })}
-
-                {/* ── Unaffiliated meetings ── */}
-                {(unaffiliatedExt.length > 0 || unaffiliatedInt.length > 0) && (
-                  <>
-                    <tr className="border-b bg-amber-50/60">
-                      <td colSpan={6} className="px-3 py-2 text-xs font-semibold text-amber-700 tracking-wide">
-                        Unaffiliated Meetings
+                return (
+                  <React.Fragment key={p.id}>
+                    {/* Partnership row */}
+                    <tr className="border-b bg-muted/20 hover:bg-muted/30 transition-colors">
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground tabular-nums text-center align-middle">
+                        {pi + 1}
+                      </td>
+                      <td className="px-3 py-2.5 align-middle">
+                        <div className="flex items-center gap-1.5">
+                          <Network size={12} className="text-muted-foreground/60 shrink-0" />
+                          <Link
+                            to={`/partnerships/${p.id}`}
+                            className="font-medium hover:text-brand transition-colors"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {p.title}
+                          </Link>
+                          {p.organization && (
+                            <span className="text-xs text-muted-foreground hidden sm:inline">· {p.organization}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 align-middle">
+                        {p.status
+                          ? <StatusBadge status={p.status.name} color={p.status.color} />
+                          : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 align-middle">
+                        <StatusUpdateCell
+                          currentStatusId={p.status_id}
+                          currentDate={p.status_date ?? null}
+                          statuses={statuses}
+                          onSave={(sid, d) => savePartnership(p, sid, d)}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 text-center align-middle">
+                        <StatusHistoryModal entityId={p.id} entityTitle={p.title} />
                       </td>
                     </tr>
-                    {unaffiliatedExt.map(m => (
-                      <tr key={`ua-ext-${m.id}`} className="border-b hover:bg-sky-50/30 transition-colors">
+
+                    {/* External meeting activity rows — read-only */}
+                    {visibleExt.map((m: { id: string; title: string; meeting_date: string | null }) => (
+                      <tr key={`ext-${m.id}`} className="border-b hover:bg-sky-50/30 transition-colors">
                         <td className="px-3 py-1.5" />
                         <td className="px-3 py-1.5 align-middle">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 pl-6">
                             <Building2 size={11} className="text-sky-500 shrink-0" />
                             <Link
                               to={`/meetings/external/${m.id}`}
@@ -480,32 +344,24 @@ export function StatusTracker() {
                             >
                               {m.title}
                             </Link>
+                            {m.meeting_date && (
+                              <span className="text-xs text-zinc-400 ml-1.5 shrink-0">· {fmtDate(m.meeting_date)}</span>
+                            )}
                           </div>
                         </td>
-                        <td className="px-3 py-1.5 align-middle"><TypeBadge type="external_meeting" /></td>
                         <td className="px-3 py-1.5 align-middle">
-                          {m.status
-                            ? <StatusBadge status={m.status.name} color={m.status.color} />
-                            : <span className="text-muted-foreground text-xs">—</span>}
+                          <span className="text-[0.68rem] font-semibold text-sky-700 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full whitespace-nowrap">External Mtg</span>
                         </td>
-                        <td className="px-3 py-1.5 align-middle">
-                          <StatusUpdateCell
-                            currentStatusId={m.status_id}
-                            currentDate={m.status_date ?? null}
-                            statuses={statuses}
-                            onSave={(sid, d) => saveExtMeeting(m, sid, d)}
-                          />
-                        </td>
-                        <td className="px-3 py-1.5 text-center align-middle">
-                          <StatusHistoryModal entityType="external_meeting" entityId={m.id} entityTitle={m.title} />
-                        </td>
+                        <td className="px-3 py-1.5" colSpan={2} />
                       </tr>
                     ))}
-                    {unaffiliatedInt.map(m => (
-                      <tr key={`ua-int-${m.id}`} className="border-b hover:bg-violet-50/30 transition-colors">
+
+                    {/* Internal meeting activity rows — read-only */}
+                    {visibleInt.map((m: { id: string; title: string; meeting_date: string | null }) => (
+                      <tr key={`int-${m.id}`} className="border-b hover:bg-violet-50/30 transition-colors">
                         <td className="px-3 py-1.5" />
                         <td className="px-3 py-1.5 align-middle">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 pl-6">
                             <Users2 size={11} className="text-violet-500 shrink-0" />
                             <Link
                               to={`/meetings/internal/${m.id}`}
@@ -514,30 +370,20 @@ export function StatusTracker() {
                             >
                               {m.title}
                             </Link>
+                            {m.meeting_date && (
+                              <span className="text-xs text-zinc-400 ml-1.5 shrink-0">· {fmtDate(m.meeting_date)}</span>
+                            )}
                           </div>
                         </td>
-                        <td className="px-3 py-1.5 align-middle"><TypeBadge type="internal_meeting" /></td>
                         <td className="px-3 py-1.5 align-middle">
-                          {m.status
-                            ? <StatusBadge status={m.status.name} color={m.status.color} />
-                            : <span className="text-muted-foreground text-xs">—</span>}
+                          <span className="text-[0.68rem] font-semibold text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">Internal Mtg</span>
                         </td>
-                        <td className="px-3 py-1.5 align-middle">
-                          <StatusUpdateCell
-                            currentStatusId={m.status_id}
-                            currentDate={m.status_date ?? null}
-                            statuses={statuses}
-                            onSave={(sid, d) => saveIntMeeting(m, sid, d)}
-                          />
-                        </td>
-                        <td className="px-3 py-1.5 text-center align-middle">
-                          <StatusHistoryModal entityType="internal_meeting" entityId={m.id} entityTitle={m.title} />
-                        </td>
+                        <td className="px-3 py-1.5" colSpan={2} />
                       </tr>
                     ))}
-                  </>
-                )}
-              </>
+                  </React.Fragment>
+                )
+              })
             )}
           </tbody>
         </table>
