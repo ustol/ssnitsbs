@@ -28,3 +28,36 @@ export function useUpdateProfile() {
     onError: (e: Error) => toast.error(e.message),
   })
 }
+
+export interface CreateUserPayload {
+  surname: string
+  first_name: string
+  other_names?: string
+  phone?: string
+  email: string
+  password: string
+  role: 'admin' | 'manager' | 'viewer'
+}
+
+export function useCreateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CreateUserPayload) => {
+      const res = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const err = await res.json() as { error?: string }
+        throw new Error(err.error ?? 'Failed to create user')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEY] })
+      toast.success('User created successfully')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}

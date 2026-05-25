@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { UserPlus, Pencil } from 'lucide-react'
-import { useUsers, useUpdateProfile } from '@/hooks/useUsers'
+import { UserPlus, Pencil, Eye, EyeOff } from 'lucide-react'
+import { useUsers, useUpdateProfile, useCreateUser } from '@/hooks/useUsers'
 import { useAuth } from '@/hooks/useAuth'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable, Column } from '@/components/shared/DataTable'
@@ -17,29 +17,59 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { getInitials, formatDate } from '@/lib/utils'
 import type { Profile } from '@/types/database'
 
-const schema = z.object({
+const editSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   role: z.enum(['admin', 'manager', 'viewer']),
 })
-type FormValues = z.infer<typeof schema>
+type EditValues = z.infer<typeof editSchema>
+
+const createSchema = z.object({
+  surname: z.string().min(1, 'Surname is required'),
+  first_name: z.string().min(1, 'First name is required'),
+  other_names: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email('Valid email is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['admin', 'manager', 'viewer']),
+})
+type CreateValues = z.infer<typeof createSchema>
 
 export function UserList() {
   const { data = [], isLoading } = useUsers()
   const { profile: currentProfile } = useAuth()
   const updateMutation = useUpdateProfile()
-  const [editTarget, setEditTarget] = useState<Profile | null>(null)
+  const createMutation = useCreateUser()
 
-  const form = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const [editTarget, setEditTarget] = useState<Profile | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+
+  const editForm = useForm<EditValues>({ resolver: zodResolver(editSchema) })
+  const createForm = useForm<CreateValues>({
+    resolver: zodResolver(createSchema),
+    defaultValues: { role: 'viewer' },
+  })
 
   const openEdit = (p: Profile) => {
     setEditTarget(p)
-    form.reset({ full_name: p.full_name ?? '', role: (p.role as 'admin' | 'manager' | 'viewer') ?? 'viewer' })
+    editForm.reset({ full_name: p.full_name ?? '', role: (p.role as 'admin' | 'manager' | 'viewer') ?? 'viewer' })
   }
 
-  const onSubmit = async (values: FormValues) => {
+  const openCreate = () => {
+    createForm.reset({ role: 'viewer', surname: '', first_name: '', other_names: '', phone: '', email: '', password: '' })
+    setShowPassword(false)
+    setCreateOpen(true)
+  }
+
+  const onEdit = async (values: EditValues) => {
     if (!editTarget) return
     await updateMutation.mutateAsync({ id: editTarget.id, values })
     setEditTarget(null)
+  }
+
+  const onCreate = async (values: CreateValues) => {
+    await createMutation.mutateAsync(values)
+    setCreateOpen(false)
   }
 
   const columns: Column<Profile>[] = [
@@ -58,6 +88,11 @@ export function UserList() {
           </div>
         </div>
       ),
+    },
+    {
+      key: 'phone',
+      header: 'Phone',
+      cell: row => <span className="text-sm text-muted-foreground">{row.phone ?? '—'}</span>,
     },
     {
       key: 'role',
@@ -96,8 +131,8 @@ export function UserList() {
         subtitle={`${data.length} members`}
         actions={
           currentProfile?.role === 'admin' ? (
-            <Button size="sm" variant="outline" disabled>
-              <UserPlus className="h-3.5 w-3.5 mr-1.5" />Invite User
+            <Button size="sm" onClick={openCreate}>
+              <UserPlus className="h-3.5 w-3.5 mr-1.5" />New User
             </Button>
           ) : undefined
         }
@@ -112,22 +147,23 @@ export function UserList() {
         emptyTitle="No users found"
       />
 
+      {/* ── Edit dialog ── */}
       <Dialog open={!!editTarget} onOpenChange={open => !open && setEditTarget(null)}>
         <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEdit)}>
               <div className="px-6 py-5 space-y-4">
-                <FormField control={form.control} name="full_name" render={({ field }) => (
+                <FormField control={editForm.control} name="full_name" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={form.control} name="role" render={({ field }) => (
+                <FormField control={editForm.control} name="role" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
@@ -146,6 +182,111 @@ export function UserList() {
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
                 <Button type="submit" className="flex-1" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Create dialog ── */}
+      <Dialog open={createOpen} onOpenChange={open => !open && setCreateOpen(false)}>
+        <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle>New User</DialogTitle>
+          </DialogHeader>
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onCreate)}>
+              <div className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={createForm.control} name="first_name" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name <span className="text-destructive">*</span></FormLabel>
+                      <FormControl><Input placeholder="Kwame" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={createForm.control} name="surname" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Surname <span className="text-destructive">*</span></FormLabel>
+                      <FormControl><Input placeholder="Mensah" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
+                <FormField control={createForm.control} name="other_names" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Other Names <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel>
+                    <FormControl><Input placeholder="Middle name(s)" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={createForm.control} name="phone" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel>
+                      <FormControl><Input placeholder="024 000 0000" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={createForm.control} name="role" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role <span className="text-destructive">*</span></FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
+                <FormField control={createForm.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email <span className="text-destructive">*</span></FormLabel>
+                    <FormControl><Input type="email" placeholder="user@ssnit.org.gh" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="password" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Min. 8 characters"
+                          className="pr-9"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(v => !v)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          tabIndex={-1}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <DialogFooter className="px-6 py-4 border-t bg-zinc-50/60 flex-row gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-1" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? 'Creating…' : 'Create User'}
                 </Button>
               </DialogFooter>
             </form>
