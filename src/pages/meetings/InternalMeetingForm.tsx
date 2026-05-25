@@ -89,7 +89,7 @@ export function InternalMeetingForm() {
           }
         }
         writeAudit({ action: 'updated', entity_type: 'internal_meeting', entity_id: id!, entity_name: values.title })
-        navigate(`/meetings/internal/${id}`)
+        navigate('/meetings/internal')
       } else {
         const created = await createMutation.mutateAsync(payload) as { id: string; title: string }
         if (pendingFiles.length > 0) {

@@ -93,7 +93,7 @@ export function ExternalMeetingForm() {
           }
         }
         writeAudit({ action: 'updated', entity_type: 'external_meeting', entity_id: id!, entity_name: values.title })
-        navigate(`/meetings/external/${id}`)
+        navigate('/meetings/external')
       } else {
         const created = await createMutation.mutateAsync(payload) as { id: string; title: string }
         if (pendingFiles.length > 0) {
