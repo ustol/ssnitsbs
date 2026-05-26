@@ -1,46 +1,51 @@
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+} from 'recharts'
 import { useIntStakeholderReport } from '@/hooks/useReports'
 import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
-
-const COLORS = ['#3b82f6','#E8621A','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316']
+import { formatDate } from '@/lib/utils'
 
 type IntData = NonNullable<ReturnType<typeof useIntStakeholderReport>['data']>
 
 function buildSummaryPrompt(data: IntData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const stakeholderLines = data.rows.slice(0, 20).map(s => {
-    const r = s as Record<string, unknown>
-    const partnerships = (r.partnershipNames as string | undefined) || 'No partnerships linked'
-    return `  • ${s.name} — ${s.department ?? 'No dept'} (${s.title ?? 'No title'}) — Partnerships: ${partnerships}`
-  }).join('\n')
+  const stakeholderLines = data.rows
+    .filter(s => s.partnershipCount > 0)
+    .slice(0, 15)
+    .map(s => `  • ${s.name} (${s.department ?? 'No dept'}, ${s.title ?? 'No title'}) — ${s.partnershipCount} partnership(s): ${s.partnershipNames}; ${s.meetingCount} related meeting(s)`)
+    .join('\n')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const meetingLines = (data.recentMeetings as any[]).slice(0, 10).map((m: any) =>
-    `  • ${m.title ?? 'Untitled'} (${m.meeting_date ?? '—'})${m.action_points ? `\n    Actions: ${(m.action_points as string).substring(0, 180)}` : ''}`
-  ).join('\n')
+  const unlinkedCount = data.rows.filter(s => s.partnershipCount === 0).length
+
+  const deptLines = data.byDepartment
+    .slice(0, 8)
+    .map(d => `  • ${d.name}: ${d.stakeholders} staff, ${d.partnerships} partnership link(s), ${d.meetings} meeting(s)`)
+    .join('\n')
 
   return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
 
-Output the memo EXACTLY in this format:
+Output the memo EXACTLY in this format (include all header lines):
 
 MEMORANDUM
 
 TO: DDG, Operations and Benefits
 FROM: Special Business Support Team
 DATE: ${today}
-SUBJECT: Internal Stakeholder Engagement Report
+SUBJECT: Internal Stakeholder Involvement Report
 
-[Write 3–4 paragraphs: (1) overview of SSNIT's internal stakeholder coverage across departments, (2) departmental participation — name the most active departments and their members, (3) recent internal meeting activity with specific outcomes, (4) any gaps or follow-up actions required. Reference departments, individuals, and partnerships by name.]
+[Write 4 paragraphs: (1) overview — ${data.total} internal stakeholders across ${data.departments} departments, covering ${data.coveredPartnerships} partnership(s), average ${data.avgPartnerships} partnerships per stakeholder; (2) name the most involved individuals — their departments, which partnerships they are linked to, and associated meeting activity; (3) departmental engagement — which departments are most active and which are underrepresented; (4) ${unlinkedCount > 0 ? `note that ${unlinkedCount} stakeholder(s) have no partnership links and may need assignment;` : ''} recommended actions to strengthen internal engagement. Reference specific names and partnerships.]
 
 --- DATA ---
 
-INTERNAL STAKEHOLDERS (${data.total} across ${data.departments} departments):
-${stakeholderLines || '  No internal stakeholders recorded.'}
+STAKEHOLDERS WITH PARTNERSHIP INVOLVEMENT:
+${stakeholderLines || '  No stakeholders linked to partnerships yet'}
 
-RECENT INTERNAL MEETINGS (last ${Math.min(10, (data.recentMeetings as unknown[]).length)}):
-${meetingLines || '  No internal meetings recorded.'}`
+UNLINKED STAKEHOLDERS: ${unlinkedCount}
+
+DEPARTMENT SUMMARY:
+${deptLines || '  No department data'}`
 }
 
 export function InternalStakeholderReport() {
@@ -49,80 +54,80 @@ export function InternalStakeholderReport() {
   return (
     <ReportPage
       title="Internal Stakeholder Report"
-      subtitle="Headcount and department breakdown for all internal stakeholders"
+      subtitle="Partnership involvement and meeting engagement per internal stakeholder and department"
       filename="Internal Stakeholder Report"
       loading={isLoading}
     >
       {isLoading ? (
-        <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
+        <div className="space-y-4">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
       ) : data && (
         <>
           <KpiRow items={[
             { label: 'Total Stakeholders', value: data.total },
-            { label: 'Departments',        value: data.departments },
-            { label: 'Largest Dept.',      value: data.byDepartment[0]?.name ?? '—' },
-            { label: 'Dept. Size (max)',   value: data.byDepartment[0]?.value ?? 0 },
+            { label: 'Departments', value: data.departments },
+            { label: 'Partnerships Covered', value: data.coveredPartnerships },
+            { label: 'Avg Partnerships / Person', value: data.avgPartnerships },
           ]} />
 
           <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Bar chart: headcount by department */}
+            {/* Department engagement */}
             <div className="space-y-3">
-              <SectionTitle>Headcount by Department</SectionTitle>
+              <SectionTitle>Partnership Links by Department</SectionTitle>
               {data.byDepartment.length > 0 ? (
-                <ChartWrapper minWidth={340}>
+                <ChartWrapper minWidth={320}>
                   <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={data.byDepartment} layout="vertical" barSize={16}>
+                    <BarChart data={data.byDepartment} layout="vertical" barSize={14}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={110} />
                       <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Staff" />
+                      <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="partnerships" fill="#3b82f6" name="Partnerships" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartWrapper>
               ) : <p className="text-sm text-zinc-400 py-8 text-center">No data</p>}
             </div>
 
-            {/* Pie chart: department share */}
+            {/* Top stakeholders */}
             <div className="space-y-3">
-              <SectionTitle>Department Distribution</SectionTitle>
-              {data.byDepartment.length > 0 ? (
-                <ChartWrapper minWidth={280}>
+              <SectionTitle>Most Involved Individuals</SectionTitle>
+              {data.topByPartnerships.length > 0 ? (
+                <ChartWrapper minWidth={300}>
                   <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={data.byDepartment.slice(0, 8)}
-                        cx="50%" cy="50%"
-                        innerRadius={60} outerRadius={100}
-                        dataKey="value"
-                        paddingAngle={2}
-                      >
-                        {data.byDepartment.slice(0, 8).map((_, i) => (
-                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [v, n]} />
-                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
+                    <BarChart data={data.topByPartnerships} layout="vertical" barSize={12}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={90} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="Partnerships" stackId="a" fill="#3b82f6" />
+                      <Bar dataKey="Meetings" stackId="a" fill="#10b981" radius={[0, 4, 4, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </ChartWrapper>
-              ) : <p className="text-sm text-zinc-400 py-8 text-center">No data</p>}
+              ) : <p className="text-sm text-zinc-400 py-8 text-center">No involvement data</p>}
             </div>
           </div>
 
           <div className="space-y-3">
-            <SectionTitle>Full Internal Stakeholder List</SectionTitle>
+            <SectionTitle>Full Involvement Breakdown</SectionTitle>
             <ReportTable
-              headers={['Name', 'Title', 'Department', 'Email', 'Phone', 'Notes']}
+              headers={['Name', 'Department', 'Title', 'Partnerships', 'Meetings Linked', 'Last Meeting', 'Partnership Names']}
               rows={data.rows.map(s => [
                 s.name,
-                s.title ?? '—',
                 s.department ?? '—',
-                s.email ?? '—',
-                s.phone ?? '—',
-                s.notes ? s.notes.substring(0, 60) + (s.notes.length > 60 ? '…' : '') : '—',
+                s.title ?? '—',
+                s.partnershipCount,
+                s.meetingCount,
+                s.lastMeetingDate ? formatDate(s.lastMeetingDate) : '—',
+                s.partnershipNames || '—',
               ])}
             />
           </div>

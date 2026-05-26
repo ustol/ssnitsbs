@@ -57,36 +57,88 @@ export function useIntStakeholderReport() {
       const [stakeholderRes, meetingRes] = await Promise.all([
         supabase
           .from('internal_stakeholders')
-          .select(`*, partnerships:partnership_internal_stakeholders(partnership:partnerships(id,title,status:status_lookup(name)))`)
+          .select(`id, name, title, department, email, phone, partnerships:partnership_internal_stakeholders(partnership:partnerships(id, title, status:status_lookup(name, color)))`)
           .order('name'),
         supabase
           .from('internal_meetings')
-          .select('id, title, meeting_date, partnership_id, action_points')
-          .order('meeting_date', { ascending: false })
-          .limit(20),
+          .select('id, title, meeting_date, partnership_id')
+          .order('meeting_date', { ascending: false }),
       ])
 
       const { data, error } = stakeholderRes
       if (error) throw error
 
-      const recentMeetings = meetingRes.data ?? []
+      // Index meetings by partnership_id for fast lookup
+      type MeetingRow = { id: string; title: string; meeting_date: string | null; partnership_id: string | null }
+      const meetingsByPartnership: Record<string, MeetingRow[]> = {}
+      for (const m of (meetingRes.data ?? []) as MeetingRow[]) {
+        if (!m.partnership_id) continue
+        ;(meetingsByPartnership[m.partnership_id] ??= []).push(m)
+      }
 
-      const rows = (data ?? []).map(s => ({
-        ...s,
-        partnershipCount: (s as Record<string, unknown>).partnerships ? ((s as Record<string, unknown>).partnerships as unknown[]).length : 0,
-        partnershipNames: ((s as Record<string, unknown>).partnerships as Array<{ partnership?: { title: string } }> ?? [])
-          .map(p => p.partnership?.title).filter(Boolean).join(', '),
-      }))
+      type LinkedPartnership = { id: string; title: string; status: { name: string; color: string } | null }
 
-      const byDepartment = Object.entries(
-        rows.reduce((acc, s) => {
-          const k = s.department ?? 'Unknown'
-          acc[k] = (acc[k] ?? 0) + 1
-          return acc
-        }, {} as Record<string, number>)
-      ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+      const rows = (data ?? []).map(s => {
+        const linked = ((s.partnerships ?? []) as Array<{ partnership: LinkedPartnership | null }>)
+          .map(p => p.partnership)
+          .filter((p): p is LinkedPartnership => p !== null)
 
-      return { rows, byDepartment, total: rows.length, departments: byDepartment.length, recentMeetings }
+        const meetingsAcrossPartnerships = linked.flatMap(p => meetingsByPartnership[p.id] ?? [])
+        const meetingCount = meetingsAcrossPartnerships.length
+        const lastMeetingDate = meetingsAcrossPartnerships.reduce((latest: string | null, m) => {
+          if (!m.meeting_date) return latest
+          return !latest || m.meeting_date > latest ? m.meeting_date : latest
+        }, null)
+
+        return {
+          ...s,
+          linkedPartnerships: linked,
+          partnershipCount: linked.length,
+          partnershipNames: linked.map(p => p.title).join(', '),
+          meetingCount,
+          lastMeetingDate,
+        }
+      })
+
+      // Department rollup: stakeholder count, total partnership links, total meeting coverage
+      const deptMap: Record<string, { stakeholders: number; partnerships: number; meetings: number }> = {}
+      for (const s of rows) {
+        const dept = s.department ?? 'Unassigned'
+        deptMap[dept] ??= { stakeholders: 0, partnerships: 0, meetings: 0 }
+        deptMap[dept].stakeholders++
+        deptMap[dept].partnerships += s.partnershipCount
+        deptMap[dept].meetings += s.meetingCount
+      }
+      const byDepartment = Object.entries(deptMap)
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => b.partnerships - a.partnerships)
+
+      // Top stakeholders by partnership involvement
+      const topByPartnerships = [...rows]
+        .sort((a, b) => b.partnershipCount - a.partnershipCount)
+        .slice(0, 10)
+        .map(s => ({
+          name: s.name.split(' ').slice(0, 2).join(' '),
+          Partnerships: s.partnershipCount,
+          Meetings: s.meetingCount,
+        }))
+
+      // Unique partnerships covered across all stakeholders
+      const coveredPartnershipIds = new Set(rows.flatMap(s => s.linkedPartnerships.map(p => p.id)))
+
+      const avgPartnerships = rows.length > 0
+        ? Math.round((rows.reduce((s, r) => s + r.partnershipCount, 0) / rows.length) * 10) / 10
+        : 0
+
+      return {
+        rows,
+        byDepartment,
+        topByPartnerships,
+        total: rows.length,
+        departments: byDepartment.length,
+        coveredPartnerships: coveredPartnershipIds.size,
+        avgPartnerships,
+      }
     },
   })
 }
