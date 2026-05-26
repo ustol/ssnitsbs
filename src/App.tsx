@@ -23,6 +23,9 @@ import { ExternalStakeholderReport } from '@/pages/reports/ExternalStakeholderRe
 import { InternalStakeholderReport } from '@/pages/reports/InternalStakeholderReport'
 import { UserPerformanceReport } from '@/pages/reports/UserPerformanceReport'
 import { ExecutiveOverviewReport } from '@/pages/reports/ExecutiveOverviewReport'
+import { PipelineReport } from '@/pages/reports/PipelineReport'
+import { MeetingAnalyticsReport } from '@/pages/reports/MeetingAnalyticsReport'
+import { DDGIntelligenceReport } from '@/pages/reports/DDGIntelligenceReport'
 import { StatusTimeReport } from '@/pages/reports/StatusTimeReport'
 import { Settings } from '@/pages/settings/Settings'
 import { UserList } from '@/pages/users/UserList'
@@ -85,6 +88,9 @@ export default function App() {
           <Route path="reports/internal-stakeholder" element={<InternalStakeholderReport />} />
           <Route path="reports/user-performance" element={<UserPerformanceReport />} />
           <Route path="reports/executive" element={<ExecutiveOverviewReport />} />
+          <Route path="reports/pipeline" element={<PipelineReport />} />
+          <Route path="reports/meeting-analytics" element={<MeetingAnalyticsReport />} />
+          <Route path="reports/ddg-intelligence" element={<DDGIntelligenceReport />} />
           <Route path="reports/status-time" element={<StatusTimeReport />} />
           {/* Audit Trail */}
           <Route path="audit" element={<AuditLog />} />

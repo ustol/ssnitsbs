@@ -365,3 +365,416 @@ export function useStatusTimeReport() {
     },
   })
 }
+
+// ─── Partnership Health Scorecard ─────────────────────────────────────────────
+export function useHealthScorecardReport() {
+  return useQuery({
+    queryKey: ['report-health-scorecard'],
+    queryFn: async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const [partnerships, extMeetings, intMeetings, ddgPending] = await Promise.all([
+        supabase
+          .from('partnerships')
+          .select('id, title, organization, status_id, status_date, status:status_lookup(name, color)')
+          .order('title'),
+        supabase.from('external_meetings').select('id, partnership_id, meeting_date'),
+        supabase.from('internal_meetings').select('id, partnership_id, meeting_date'),
+        supabase.from('ddg_feedback').select('id, partnership_id').eq('is_actioned', false),
+      ])
+
+      if (partnerships.error) throw partnerships.error
+
+      const dayDiff = (dateStr: string) =>
+        Math.floor((today.getTime() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000)
+
+      // Last meeting date per partnership (max across ext + int)
+      const lastMeetingMap: Record<string, string> = {}
+      for (const m of [...(extMeetings.data ?? []), ...(intMeetings.data ?? [])]) {
+        if (!m.partnership_id || !m.meeting_date) continue
+        const existing = lastMeetingMap[m.partnership_id]
+        if (!existing || m.meeting_date > existing) lastMeetingMap[m.partnership_id] = m.meeting_date
+      }
+
+      // Open DDG count per partnership
+      const openDDGMap: Record<string, number> = {}
+      for (const f of ddgPending.data ?? []) {
+        if (!f.partnership_id) continue
+        openDDGMap[f.partnership_id] = (openDDGMap[f.partnership_id] ?? 0) + 1
+      }
+
+      const rows = (partnerships.data ?? []).map(p => {
+        const lastMeeting = lastMeetingMap[p.id] ?? null
+        const daysSinceLastMeeting = lastMeeting ? dayDiff(lastMeeting) : null
+        const daysInCurrentStatus = p.status_date ? dayDiff(p.status_date) : null
+        const openDDGCount = openDDGMap[p.id] ?? 0
+
+        let rag: 'red' | 'amber' | 'green' = 'green'
+        if (
+          (daysSinceLastMeeting !== null && daysSinceLastMeeting >= 60) ||
+          (daysInCurrentStatus !== null && daysInCurrentStatus >= 90) ||
+          openDDGCount >= 3
+        ) {
+          rag = 'red'
+        } else if (
+          daysSinceLastMeeting === null ||
+          daysSinceLastMeeting >= 30 ||
+          (daysInCurrentStatus !== null && daysInCurrentStatus >= 60) ||
+          openDDGCount >= 1
+        ) {
+          rag = 'amber'
+        }
+
+        return {
+          id: p.id,
+          title: p.title,
+          organization: p.organization ?? null,
+          status: (p.status as { name: string; color: string } | null),
+          lastMeetingDate: lastMeeting,
+          daysSinceLastMeeting,
+          daysInCurrentStatus,
+          openDDGCount,
+          rag,
+        }
+      })
+
+      // Sort: red → amber → green, then alphabetical within each group
+      rows.sort((a, b) => {
+        const order = { red: 0, amber: 1, green: 2 }
+        const diff = order[a.rag] - order[b.rag]
+        return diff !== 0 ? diff : a.title.localeCompare(b.title)
+      })
+
+      return {
+        rows,
+        redCount: rows.filter(r => r.rag === 'red').length,
+        amberCount: rows.filter(r => r.rag === 'amber').length,
+        greenCount: rows.filter(r => r.rag === 'green').length,
+        total: rows.length,
+      }
+    },
+  })
+}
+
+// ─── Pipeline & Progression Report ───────────────────────────────────────────
+export function usePipelineReport() {
+  return useQuery({
+    queryKey: ['report-pipeline'],
+    queryFn: async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const [partnerships, statusHistory, settings] = await Promise.all([
+        supabase
+          .from('partnerships')
+          .select('id, title, organization, proposed_value, status_id, status_date, start_date, end_date, status:status_lookup(name, color)')
+          .order('title'),
+        supabase
+          .from('status_history')
+          .select('entity_id, to_status_id, to_status:to_status_id(name, color), status_date')
+          .eq('entity_type', 'partnership')
+          .order('created_at'),
+        supabase.from('system_settings').select('key, value'),
+      ])
+
+      if (partnerships.error) throw partnerships.error
+
+      const settingsMap: Record<string, string> = {}
+      for (const s of settings.data ?? []) settingsMap[s.key] = s.value
+      const bestPct = Number(settingsMap.best_case_pct ?? 60)
+      const worstPct = Number(settingsMap.worst_case_pct ?? 30)
+
+      const allPartnerships = partnerships.data ?? []
+
+      // Funnel: count and proposed value per status
+      const funnelMap: Record<string, { name: string; color: string; count: number; value: number }> = {}
+      for (const p of allPartnerships) {
+        const s = p.status as { name: string; color: string } | null
+        const key = s?.name ?? 'No Status'
+        funnelMap[key] ??= { name: key, color: s?.color ?? '#6b7280', count: 0, value: 0 }
+        funnelMap[key].count++
+        funnelMap[key].value += p.proposed_value ?? 0
+      }
+      const funnel = Object.values(funnelMap).sort((a, b) => b.count - a.count)
+
+      // Dwell time per status from history
+      type HistoryEntry = { to_status_id: string; to_status: { name: string; color: string } | null; status_date: string | null }
+      const historyByEntity: Record<string, HistoryEntry[]> = {}
+      for (const r of statusHistory.data ?? []) {
+        ;(historyByEntity[r.entity_id] ??= []).push(r as HistoryEntry)
+      }
+
+      const dwellMap: Record<string, { name: string; color: string; total: number; count: number }> = {}
+      for (const entries of Object.values(historyByEntity)) {
+        for (let i = 0; i < entries.length - 1; i++) {
+          const curr = entries[i], next = entries[i + 1]
+          if (!curr.status_date || !next.status_date || !curr.to_status_id) continue
+          const days = Math.floor(
+            (new Date(next.status_date + 'T00:00:00').getTime() - new Date(curr.status_date + 'T00:00:00').getTime()) / 86400000
+          )
+          if (days < 0) continue
+          const sid = curr.to_status_id
+          const sName = curr.to_status?.name ?? 'Unknown'
+          const sColor = curr.to_status?.color ?? '#6b7280'
+          dwellMap[sid] ??= { name: sName, color: sColor, total: 0, count: 0 }
+          dwellMap[sid].total += days
+          dwellMap[sid].count++
+        }
+      }
+      const dwellByStatus = Object.values(dwellMap)
+        .map(s => ({ name: s.name, color: s.color, avgDays: s.count > 0 ? Math.round(s.total / s.count) : 0, transitions: s.count }))
+        .filter(s => s.avgDays > 0)
+        .sort((a, b) => b.avgDays - a.avgDays)
+
+      // Open pipeline: partnerships with no end_date, sorted by longest open
+      const dayDiff = (dateStr: string) =>
+        Math.floor((today.getTime() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000)
+
+      const openPartnerships = allPartnerships
+        .filter(p => !p.end_date)
+        .map(p => ({
+          id: p.id,
+          title: p.title,
+          organization: p.organization ?? null,
+          status: p.status as { name: string; color: string } | null,
+          startDate: p.start_date,
+          daysOpen: p.start_date ? dayDiff(p.start_date) : null,
+          proposedValue: p.proposed_value ?? 0,
+        }))
+        .sort((a, b) => (b.daysOpen ?? -1) - (a.daysOpen ?? -1))
+
+      const totalProposed = allPartnerships.reduce((s, p) => s + (p.proposed_value ?? 0), 0)
+
+      return {
+        funnel,
+        dwellByStatus,
+        openPartnerships,
+        totalPartnerships: allPartnerships.length,
+        openCount: openPartnerships.length,
+        totalProposed,
+        bestPct,
+        worstPct,
+      }
+    },
+  })
+}
+
+// ─── Meeting Analytics Report ─────────────────────────────────────────────────
+export function useMeetingAnalyticsReport() {
+  return useQuery({
+    queryKey: ['report-meeting-analytics'],
+    queryFn: async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const cutoff90 = new Date(today)
+      cutoff90.setDate(cutoff90.getDate() - 90)
+      const cutoff90Str = cutoff90.toISOString().slice(0, 10)
+
+      const [extMeetings, intMeetings, partnerships] = await Promise.all([
+        supabase.from('external_meetings').select('id, partnership_id, meeting_date').order('meeting_date', { ascending: false }),
+        supabase.from('internal_meetings').select('id, partnership_id, meeting_date').order('meeting_date', { ascending: false }),
+        supabase.from('partnerships').select('id, title').order('title'),
+      ])
+
+      if (partnerships.error) throw partnerships.error
+
+      const partnershipNameMap: Record<string, string> = {}
+      for (const p of partnerships.data ?? []) partnershipNameMap[p.id] = p.title
+
+      const allExt = extMeetings.data ?? []
+      const allInt = intMeetings.data ?? []
+
+      // Monthly trend — last 12 months, split ext/int
+      const monthlyMap: Record<string, { ext: number; int: number }> = {}
+      for (const m of allExt) {
+        if (!m.meeting_date) continue
+        const k = m.meeting_date.slice(0, 7)
+        monthlyMap[k] ??= { ext: 0, int: 0 }
+        monthlyMap[k].ext++
+      }
+      for (const m of allInt) {
+        if (!m.meeting_date) continue
+        const k = m.meeting_date.slice(0, 7)
+        monthlyMap[k] ??= { ext: 0, int: 0 }
+        monthlyMap[k].int++
+      }
+      const monthlyTrend = Object.entries(monthlyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-12)
+        .map(([k, v]) => ({
+          month: new Date(k + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+          External: v.ext,
+          Internal: v.int,
+          Total: v.ext + v.int,
+        }))
+
+      // Per-partnership stats
+      const dayDiff = (dateStr: string) =>
+        Math.floor((today.getTime() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000)
+
+      const statsMap: Record<string, { extCount: number; intCount: number; lastDate: string | null }> = {}
+      for (const p of partnerships.data ?? []) statsMap[p.id] = { extCount: 0, intCount: 0, lastDate: null }
+
+      for (const m of allExt) {
+        if (!m.partnership_id) continue
+        const s = statsMap[m.partnership_id]
+        if (!s) continue
+        s.extCount++
+        if (m.meeting_date && (!s.lastDate || m.meeting_date > s.lastDate)) s.lastDate = m.meeting_date
+      }
+      for (const m of allInt) {
+        if (!m.partnership_id) continue
+        const s = statsMap[m.partnership_id]
+        if (!s) continue
+        s.intCount++
+        if (m.meeting_date && (!s.lastDate || m.meeting_date > s.lastDate)) s.lastDate = m.meeting_date
+      }
+
+      const partnershipStats = Object.entries(statsMap)
+        .map(([id, s]) => ({
+          id,
+          title: partnershipNameMap[id] ?? 'Unknown',
+          extCount: s.extCount,
+          intCount: s.intCount,
+          total: s.extCount + s.intCount,
+          lastMeetingDate: s.lastDate,
+          daysSinceLastMeeting: s.lastDate ? dayDiff(s.lastDate) : null,
+        }))
+        .sort((a, b) => b.total - a.total)
+
+      // Cadence gap buckets
+      const cadenceBuckets = [
+        { label: '0–14 days', count: partnershipStats.filter(p => p.daysSinceLastMeeting !== null && p.daysSinceLastMeeting <= 14).length },
+        { label: '15–30 days', count: partnershipStats.filter(p => p.daysSinceLastMeeting !== null && p.daysSinceLastMeeting > 14 && p.daysSinceLastMeeting <= 30).length },
+        { label: '31–60 days', count: partnershipStats.filter(p => p.daysSinceLastMeeting !== null && p.daysSinceLastMeeting > 30 && p.daysSinceLastMeeting <= 60).length },
+        { label: '60+ days', count: partnershipStats.filter(p => p.daysSinceLastMeeting !== null && p.daysSinceLastMeeting > 60).length },
+        { label: 'No meetings', count: partnershipStats.filter(p => p.daysSinceLastMeeting === null).length },
+      ]
+
+      // Top partnerships — last 90 days
+      const recent90Map: Record<string, { ext: number; int: number }> = {}
+      for (const m of allExt) {
+        if (!m.partnership_id || !m.meeting_date || m.meeting_date < cutoff90Str) continue
+        recent90Map[m.partnership_id] ??= { ext: 0, int: 0 }
+        recent90Map[m.partnership_id].ext++
+      }
+      for (const m of allInt) {
+        if (!m.partnership_id || !m.meeting_date || m.meeting_date < cutoff90Str) continue
+        recent90Map[m.partnership_id] ??= { ext: 0, int: 0 }
+        recent90Map[m.partnership_id].int++
+      }
+      const topRecent90 = Object.entries(recent90Map)
+        .map(([id, v]) => ({
+          name: (partnershipNameMap[id] ?? 'Unknown').substring(0, 24),
+          External: v.ext,
+          Internal: v.int,
+          total: v.ext + v.int,
+        }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10)
+
+      const totalMeetings = allExt.length + allInt.length
+      const totalPartnerships = partnerships.data?.length ?? 0
+      const avgMeetingsPerPartnership = totalPartnerships > 0
+        ? Math.round((totalMeetings / totalPartnerships) * 10) / 10
+        : 0
+      const pctNoMeeting30d = totalPartnerships > 0
+        ? Math.round(
+            (partnershipStats.filter(p => p.daysSinceLastMeeting === null || p.daysSinceLastMeeting > 30).length / totalPartnerships) * 100
+          )
+        : 0
+
+      return {
+        monthlyTrend,
+        partnershipStats,
+        cadenceBuckets,
+        topRecent90,
+        totalMeetings,
+        totalExt: allExt.length,
+        totalInt: allInt.length,
+        avgMeetingsPerPartnership,
+        pctNoMeeting30d,
+      }
+    },
+  })
+}
+
+// ─── DDG Intelligence Report ──────────────────────────────────────────────────
+export function useDDGIntelligenceReport() {
+  return useQuery({
+    queryKey: ['report-ddg-intelligence'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ddg_feedback')
+        .select('id, feedback_type, partnership_id, is_actioned, received_date, summary, partnership:partnerships(id, title)')
+        .order('received_date', { ascending: false })
+      if (error) throw error
+
+      const items = data ?? []
+      const total = items.length
+      const pending = items.filter(f => !f.is_actioned).length
+      const actioned = total - pending
+      const actionRate = total > 0 ? Math.round((actioned / total) * 100) : 0
+
+      // By feedback type
+      const typeMap: Record<string, { pending: number; actioned: number }> = {}
+      for (const f of items) {
+        const k = f.feedback_type ?? 'Unknown'
+        typeMap[k] ??= { pending: 0, actioned: 0 }
+        if (f.is_actioned) typeMap[k].actioned++
+        else typeMap[k].pending++
+      }
+      const byType = Object.entries(typeMap)
+        .map(([name, v]) => ({ name, Pending: v.pending, Actioned: v.actioned, total: v.pending + v.actioned }))
+        .sort((a, b) => b.total - a.total)
+
+      // By partnership
+      const pMap: Record<string, { title: string; pending: number; actioned: number }> = {}
+      for (const f of items) {
+        if (!f.partnership_id) continue
+        const title = (f.partnership as { title: string } | null)?.title ?? 'Unknown'
+        pMap[f.partnership_id] ??= { title, pending: 0, actioned: 0 }
+        if (f.is_actioned) pMap[f.partnership_id].actioned++
+        else pMap[f.partnership_id].pending++
+      }
+      const byPartnership = Object.values(pMap)
+        .map(v => ({ title: v.title, Pending: v.pending, Actioned: v.actioned, total: v.pending + v.actioned }))
+        .sort((a, b) => b.total - a.total)
+
+      // Monthly trend
+      const monthlyMap: Record<string, { pending: number; actioned: number }> = {}
+      for (const f of items) {
+        if (!f.received_date) continue
+        const k = f.received_date.slice(0, 7)
+        monthlyMap[k] ??= { pending: 0, actioned: 0 }
+        if (f.is_actioned) monthlyMap[k].actioned++
+        else monthlyMap[k].pending++
+      }
+      const monthlyTrend = Object.entries(monthlyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-12)
+        .map(([k, v]) => ({
+          month: new Date(k + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+          Pending: v.pending,
+          Actioned: v.actioned,
+        }))
+
+      // Full table: pending first, then by date descending
+      const tableRows = [...items]
+        .sort((a, b) => {
+          if (a.is_actioned !== b.is_actioned) return a.is_actioned ? 1 : -1
+          return (b.received_date ?? '').localeCompare(a.received_date ?? '')
+        })
+        .map(f => ({
+          date: f.received_date ?? '—',
+          summary: f.summary,
+          type: f.feedback_type ?? '—',
+          partnership: (f.partnership as { title: string } | null)?.title ?? '—',
+          actioned: f.is_actioned,
+        }))
+
+      return { total, pending, actioned, actionRate, byType, byPartnership, monthlyTrend, tableRows }
+    },
+  })
+}

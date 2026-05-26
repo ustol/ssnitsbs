@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  BarChart3, TrendingUp, Building2, Users, UserCheck, FileBarChart2, ChevronRight, Clock,
+  BarChart3, TrendingUp, Building2, Users, UserCheck, ChevronRight, Clock,
+  Activity, Layers, CalendarDays, Inbox,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useSettings } from '@/hooks/useSettings'
@@ -76,8 +77,60 @@ function useReportData() {
 
 const REPORT_TYPES = [
   {
+    title: 'Partnership Health Scorecard',
+    description: 'RAG-rated health assessment — meeting cadence, status progression and open DDG exposure per partnership.',
+    icon: Activity,
+    iconBg: 'bg-amber-50',
+    iconColor: 'text-amber-600',
+    btnClass: 'bg-amber-500 hover:bg-amber-600 text-white',
+    to: '/reports/executive',
+    countKey: 'totalPartnerships' as const,
+    countLabel: 'Partnerships',
+    count2Key: null,
+    count2Label: 'RAG Scorecard',
+  },
+  {
+    title: 'Pipeline & Progression',
+    description: 'Funnel distribution by status, average dwell time per stage, and longest-open partnerships.',
+    icon: Layers,
+    iconBg: 'bg-violet-50',
+    iconColor: 'text-violet-600',
+    btnClass: 'bg-violet-600 hover:bg-violet-700 text-white',
+    to: '/reports/pipeline',
+    countKey: 'totalPartnerships' as const,
+    countLabel: 'Partnerships',
+    count2Key: 'totalProposed' as const,
+    count2Label: 'Proposed Members',
+  },
+  {
+    title: 'Meeting Analytics',
+    description: 'Meeting frequency trends, cadence gaps by partnership, and most active partnerships last 90 days.',
+    icon: CalendarDays,
+    iconBg: 'bg-sky-50',
+    iconColor: 'text-sky-600',
+    btnClass: 'bg-sky-600 hover:bg-sky-700 text-white',
+    to: '/reports/meeting-analytics',
+    countKey: 'totalExtMeetings' as const,
+    countLabel: 'Ext. Meetings',
+    count2Key: 'totalIntMeetings' as const,
+    count2Label: 'Int. Meetings',
+  },
+  {
+    title: 'DDG Intelligence',
+    description: 'Feedback backlog, action rate, type breakdown, partnership attribution and monthly trends.',
+    icon: Inbox,
+    iconBg: 'bg-red-50',
+    iconColor: 'text-red-600',
+    btnClass: 'bg-red-500 hover:bg-red-600 text-white',
+    to: '/reports/ddg-intelligence',
+    countKey: 'totalDDG' as const,
+    countLabel: 'Total Items',
+    count2Key: 'pendingDDG' as const,
+    count2Label: 'Pending',
+  },
+  {
     title: 'External Stakeholder Report',
-    description: 'Full activity report on selected external stakeholders — meetings, attendees, outcomes.',
+    description: 'Full activity report on external stakeholders — partnerships, meetings and engagement depth.',
     icon: Building2,
     iconBg: 'bg-orange-50',
     iconColor: 'text-brand',
@@ -90,7 +143,7 @@ const REPORT_TYPES = [
   },
   {
     title: 'Internal Stakeholder Report',
-    description: 'Activity report for departments — partnerships participated in and engagement depth.',
+    description: 'Activity report for departments — partnerships participated in and internal engagement.',
     icon: UserCheck,
     iconBg: 'bg-blue-50',
     iconColor: 'text-blue-600',
@@ -103,7 +156,7 @@ const REPORT_TYPES = [
   },
   {
     title: 'User Performance Report',
-    description: 'Activity and performance per user — records created, meetings recorded, audit trail.',
+    description: 'Activity and performance per user — records created, meetings logged, DDG submissions.',
     icon: Users,
     iconBg: 'bg-green-50',
     iconColor: 'text-green-600',
@@ -115,25 +168,12 @@ const REPORT_TYPES = [
     count2Label: 'Full Audit Trail',
   },
   {
-    title: 'Executive Overview',
-    description: 'Full partnership pipeline overview with charts and detailed stakeholder meeting records.',
-    icon: FileBarChart2,
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-600',
-    btnClass: 'bg-amber-500 hover:bg-amber-600 text-white',
-    to: '/reports/executive',
-    countKey: 'totalPartnerships' as const,
-    countLabel: 'Partnerships',
-    count2Key: 'totalProposed' as const,
-    count2Label: 'Proposed',
-  },
-  {
     title: 'Status Time Analysis',
-    description: 'How long partnerships and meetings stay in each status — transition frequencies, bottlenecks and trends.',
+    description: 'How long partnerships stay in each status — transition frequencies, bottlenecks and trends.',
     icon: Clock,
-    iconBg: 'bg-violet-50',
-    iconColor: 'text-violet-600',
-    btnClass: 'bg-violet-600 hover:bg-violet-700 text-white',
+    iconBg: 'bg-zinc-100',
+    iconColor: 'text-zinc-600',
+    btnClass: 'bg-zinc-700 hover:bg-zinc-800 text-white',
     to: '/reports/status-time',
     countKey: null,
     countLabel: 'Status History',
@@ -158,7 +198,7 @@ export function Reports() {
       />
 
       {/* Report type cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-3">
         {REPORT_TYPES.map(rt => {
           const Icon = rt.icon
           const c1 = rt.countKey && data ? data[rt.countKey] : null
