@@ -91,6 +91,7 @@ export function useDeleteMeetingAttachment() {
     },
     onSuccess: (_, { meetingType, meetingId }) => {
       qc.invalidateQueries({ queryKey: ['meeting-attachments', meetingType, meetingId] })
+      qc.invalidateQueries({ queryKey: ['library-data'] })
       toast.success('Attachment removed')
     },
     onError: (e: Error) => toast.error(e.message),

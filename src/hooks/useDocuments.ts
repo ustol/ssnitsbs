@@ -35,7 +35,11 @@ export function useUploadDocument() {
       if (error) throw error
       return data
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [QUERY_KEY] }); toast.success('Document uploaded') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEY] })
+      qc.invalidateQueries({ queryKey: ['library-data'] })
+      toast.success('Document uploaded')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 }
@@ -48,7 +52,11 @@ export function useDeleteDocument() {
       const { error } = await supabase.from('documents').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [QUERY_KEY] }); toast.success('Document deleted') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEY] })
+      qc.invalidateQueries({ queryKey: ['library-data'] })
+      toast.success('Document deleted')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 }
