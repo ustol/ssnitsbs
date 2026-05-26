@@ -126,6 +126,8 @@ export interface DDGFeedback {
   id: string
   feedback_type: string
   partnership_id: string | null
+  meeting_id: string | null
+  meeting_type: 'external' | 'internal' | null
   stakeholder_id: string | null
   received_date: string | null
   summary: string

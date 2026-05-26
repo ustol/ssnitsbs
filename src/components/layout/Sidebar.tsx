@@ -150,7 +150,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/status-tracker" label="Status Tracker" icon={Activity} />
 
             <SectionLabel>Reporting</SectionLabel>
-            <SidebarLink to="/feedback/ddg" label="DDG Feedback" icon={MessageSquare} badge={pendingDDG} />
+            <SidebarLink to="/feedback/ddg" label="DDG's Comments" icon={MessageSquare} badge={pendingDDG} />
             <SidebarLink to="/reports" label="Executive Reports" icon={BarChart3} />
 
             <SectionLabel>Resources</SectionLabel>

@@ -12,6 +12,23 @@ import { formatDate } from '@/lib/utils'
 
 type Row = Record<string, unknown>
 
+function LinkedToCell({ row }: { row: Row }) {
+  const partnership = row.partnership as { title: string } | null
+  const meetingTitle = row.meeting_title as string | null
+  const meetingType = row.meeting_type as string | null
+
+  if (partnership) return <span className="text-sm">{partnership.title}</span>
+  if (meetingTitle) return (
+    <span className="flex items-center gap-1.5">
+      <span className={`text-[0.65rem] font-semibold px-1.5 py-0.5 rounded-full ${meetingType === 'external' ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'}`}>
+        {meetingType === 'external' ? 'Ext' : 'Int'}
+      </span>
+      <span className="text-sm">{meetingTitle}</span>
+    </span>
+  )
+  return <span className="text-muted-foreground">—</span>
+}
+
 export function DDGFeedbackList() {
   const navigate = useNavigate()
   const { data = [], isLoading } = useDDGFeedbackList()
@@ -40,8 +57,7 @@ export function DDGFeedbackList() {
         >
           {row.is_actioned
             ? <CheckCircle className="h-4 w-4 text-green-600" />
-            : <Circle className="h-4 w-4" />
-          }
+            : <Circle className="h-4 w-4" />}
         </button>
       ),
       className: 'w-[40px]',
@@ -52,17 +68,17 @@ export function DDGFeedbackList() {
       cell: row => <span className="font-medium">{row.feedback_type as string}</span>,
     },
     {
+      key: 'linked_to',
+      header: 'Linked To',
+      cell: row => <LinkedToCell row={row} />,
+    },
+    {
       key: 'stakeholder',
       header: 'From',
       cell: row => {
         const s = row.stakeholder as { name: string; organization: string } | null
         return s ? <span>{s.name}{s.organization ? ` · ${s.organization}` : ''}</span> : '—'
       },
-    },
-    {
-      key: 'partnership',
-      header: 'Partnership',
-      cell: row => (row.partnership as { title: string } | null)?.title ?? '—',
     },
     {
       key: 'received_date',
@@ -104,11 +120,11 @@ export function DDGFeedbackList() {
   return (
     <div className="p-6">
       <PageHeader
-        title="DDG Feedback"
+        title="DDG's Comments"
         subtitle={pendingCount > 0 ? `${pendingCount} pending` : `${data.length} total`}
         actions={
           <Button size="sm" asChild>
-            <Link to="/feedback/ddg/new"><Plus className="h-3.5 w-3.5 mr-1.5" />Record Feedback</Link>
+            <Link to="/feedback/ddg/new"><Plus className="h-3.5 w-3.5 mr-1.5" />Add Comment</Link>
           </Button>
         }
       />
@@ -117,7 +133,11 @@ export function DDGFeedbackList() {
         <TabsList>
           <TabsTrigger value="all">All ({data.length})</TabsTrigger>
           <TabsTrigger value="pending">
-            Pending {pendingCount > 0 && <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white font-medium">{pendingCount}</span>}
+            Pending {pendingCount > 0 && (
+              <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white font-medium">
+                {pendingCount}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="actioned">Actioned</TabsTrigger>
         </TabsList>
@@ -127,10 +147,10 @@ export function DDGFeedbackList() {
         data={filtered}
         columns={columns}
         loading={isLoading}
-        searchKeys={['feedback_type'] as (keyof Row)[]}
-        searchPlaceholder="Search feedback…"
-        emptyTitle="No DDG feedback yet"
-        emptyAction={<Button size="sm" asChild><Link to="/feedback/ddg/new">Record Feedback</Link></Button>}
+        searchKeys={['feedback_type', 'summary'] as (keyof Row)[]}
+        searchPlaceholder="Search comments…"
+        emptyTitle="No DDG comments yet"
+        emptyAction={<Button size="sm" asChild><Link to="/feedback/ddg/new">Add Comment</Link></Button>}
         onRowClick={row => navigate(`/feedback/ddg/${row.id}`)}
       />
 

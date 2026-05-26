@@ -22,6 +22,34 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
+function LinkedToField({ f }: { f: Record<string, unknown> }) {
+  const partnership = f.partnership as { id: string; title: string } | null
+  const meetingTitle = f.meeting_title as string | null
+  const meetingId = f.meeting_id as string | null
+  const meetingType = f.meeting_type as 'external' | 'internal' | null
+
+  if (partnership) {
+    return (
+      <Field
+        label="Partnership"
+        value={<Link to={`/partnerships/${partnership.id}`} className="text-brand hover:underline">{partnership.title}</Link>}
+      />
+    )
+  }
+  if (meetingId && meetingTitle) {
+    const meetingPath = meetingType === 'external'
+      ? `/meetings/external/${meetingId}`
+      : `/meetings/internal/${meetingId}`
+    return (
+      <Field
+        label={meetingType === 'external' ? 'External Meeting' : 'Internal Meeting'}
+        value={<Link to={meetingPath} className="text-brand hover:underline">{meetingTitle}</Link>}
+      />
+    )
+  }
+  return <Field label="Linked To" value={null} />
+}
+
 export function DDGFeedbackView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -39,11 +67,10 @@ export function DDGFeedbackView() {
     return <div className="p-6 space-y-4"><Skeleton className="h-7 w-64" /><Skeleton className="h-64 w-full rounded-xl" /></div>
   }
   if (!feedback) {
-    return <div className="p-6"><EmptyState title="Feedback not found" action={<Button asChild><Link to="/feedback/ddg">Back</Link></Button>} /></div>
+    return <div className="p-6"><EmptyState title="Comment not found" action={<Button asChild><Link to="/feedback/ddg">Back</Link></Button>} /></div>
   }
 
   const f = feedback as Record<string, unknown>
-  const partnership = f.partnership as { id: string; title: string } | null
   const stakeholder = f.stakeholder as { name: string; organization: string } | null
   const isActioned = f.is_actioned as boolean
 
@@ -59,8 +86,7 @@ export function DDGFeedbackView() {
               <Share2 className="h-3.5 w-3.5 mr-1.5" />Share
             </Button>
             <Button
-              variant="outline"
-              size="sm"
+              variant="outline" size="sm"
               onClick={() => markMutation.mutate({ id: id!, actioned: !isActioned })}
               disabled={markMutation.isPending}
             >
@@ -82,16 +108,16 @@ export function DDGFeedbackView() {
       <Card>
         <CardHeader className="py-3 px-5">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Feedback Details</CardTitle>
+            <CardTitle className="text-sm font-semibold">Comment Details</CardTitle>
             <Badge variant={isActioned ? 'success' : 'warning'}>{isActioned ? 'Actioned' : 'Pending'}</Badge>
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-2">
           <dl>
             <Field label="Type" value={f.feedback_type as string} />
-            <Field label="Partnership" value={partnership ? <Link to={`/partnerships/${partnership.id}`} className="text-brand hover:underline">{partnership.title}</Link> : null} />
+            <LinkedToField f={f} />
             <Field label="From" value={stakeholder ? `${stakeholder.name}${stakeholder.organization ? ` — ${stakeholder.organization}` : ''}` : null} />
-            <Field label="Date Received" value={f.received_date ? formatDate(f.received_date as string) : null} />
+            <Field label="Date" value={f.received_date ? formatDate(f.received_date as string) : null} />
             <Field label="Summary" value={f.summary as string} />
             <Field label="Details" value={f.details as string} />
             <Field label="Action Taken" value={f.action_taken as string} />
