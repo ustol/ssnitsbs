@@ -2,7 +2,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
 import { useDDGIntelligenceReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 type DDGData = NonNullable<ReturnType<typeof useDDGIntelligenceReport>['data']>
@@ -61,6 +61,7 @@ export function DDGIntelligenceReport() {
       subtitle="Feedback backlog, type breakdown, partnership attribution and monthly trends"
       filename="DDG Intelligence Report"
       loading={isLoading}
+      memoPrompt={data ? buildPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">
@@ -80,8 +81,6 @@ export function DDGIntelligenceReport() {
               color: data.actionRate >= 80 ? 'text-green-600' : data.actionRate >= 50 ? 'text-amber-600' : 'text-red-600',
             },
           ]} />
-
-          <AISummaryCard prompt={buildPrompt(data)} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Action rate donut */}

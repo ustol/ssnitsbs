@@ -2,7 +2,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
 import { useIntStakeholderReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/utils'
 
@@ -57,6 +57,7 @@ export function InternalStakeholderReport() {
       subtitle="Partnership involvement and meeting engagement per internal stakeholder and department"
       filename="Internal Stakeholder Report"
       loading={isLoading}
+      memoPrompt={data ? buildSummaryPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">
@@ -72,8 +73,6 @@ export function InternalStakeholderReport() {
             { label: 'Partnerships Covered', value: data.coveredPartnerships },
             { label: 'Avg Partnerships / Person', value: data.avgPartnerships },
           ]} />
-
-          <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Department engagement */}

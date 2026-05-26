@@ -1,5 +1,5 @@
 import { useHealthScorecardReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, AISummaryCard } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/utils'
 
@@ -69,6 +69,7 @@ export function ExecutiveOverviewReport() {
       subtitle="RAG-rated health assessment — meeting cadence, status progression and DDG exposure"
       filename="Partnership Health Scorecard"
       loading={isLoading}
+      memoPrompt={data ? buildPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">
@@ -84,8 +85,6 @@ export function ExecutiveOverviewReport() {
             { label: 'Amber — Monitor', value: data.amberCount, color: 'text-amber-500' },
             { label: 'Green — On Track', value: data.greenCount, color: 'text-green-600' },
           ]} />
-
-          <AISummaryCard prompt={buildPrompt(data)} />
 
           {/* RAG criteria */}
           <div className="rounded-lg border bg-zinc-50/60 px-4 py-3 text-xs text-zinc-500 space-y-1.5">

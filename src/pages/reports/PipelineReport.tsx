@@ -2,7 +2,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
 } from 'recharts'
 import { usePipelineReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const COLORS = ['#E8621A', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
@@ -70,6 +70,7 @@ export function PipelineReport() {
       subtitle="Partnership funnel distribution, status dwell times and open pipeline duration"
       filename="Pipeline & Progression Report"
       loading={isLoading}
+      memoPrompt={data ? buildPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">
@@ -85,8 +86,6 @@ export function PipelineReport() {
             { label: `Best Case (${data.bestPct}%)`, value: fmt(Math.round(data.totalProposed * data.bestPct / 100)), color: 'text-green-600' },
             { label: `Worst Case (${data.worstPct}%)`, value: fmt(Math.round(data.totalProposed * data.worstPct / 100)), color: 'text-amber-600' },
           ]} />
-
-          <AISummaryCard prompt={buildPrompt(data)} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Funnel by status */}

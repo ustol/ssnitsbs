@@ -7,6 +7,50 @@ import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './R
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/utils'
 
+type MeetingData = NonNullable<ReturnType<typeof useMeetingAnalyticsReport>['data']>
+
+function buildPrompt(data: MeetingData): string {
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const cadenceLines = data.cadenceBuckets
+    .map(b => `  • ${b.label}: ${b.count} partnership(s)`)
+    .join('\n')
+
+  const trendLines = data.monthlyTrend.slice(-6)
+    .map(m => `  ${m.month}: ${((m.External as number) ?? 0) + ((m.Internal as number) ?? 0)} meetings (${(m.External as number) ?? 0} ext, ${(m.Internal as number) ?? 0} int)`)
+    .join('\n')
+
+  const partnershipLines = data.partnershipStats.slice(0, 12)
+    .map(p => `  • ${p.title}: ${p.total} total (${p.extCount} ext, ${p.intCount} int)${p.daysSinceLastMeeting !== null ? `, last ${p.daysSinceLastMeeting}d ago` : ', never met'}`)
+    .join('\n')
+
+  return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
+
+Output the memo EXACTLY in this format (include all header lines):
+
+MEMORANDUM
+
+TO: DDG, Operations and Benefits
+FROM: Special Business Support Team
+DATE: ${today}
+SUBJECT: Meeting Analytics Report
+
+[Write 4 paragraphs: (1) overall meeting activity — ${data.totalMeetings} total meetings (${data.totalExt} external, ${data.totalMeetings - data.totalExt} internal), avg ${data.avgMeetingsPerPartnership} meetings per partnership; (2) cadence gaps — ${data.pctNoMeeting30d}% of partnerships have had no meeting in 30 days; detail the cadence distribution; (3) most and least active partnerships by name, citing specific meeting counts and days since last meeting; (4) recommended actions to improve meeting frequency and close engagement gaps. Reference specific partnership names.]
+
+--- DATA ---
+
+TOTALS: ${data.totalMeetings} total · ${data.totalExt} ext · ${data.totalMeetings - data.totalExt} int · avg ${data.avgMeetingsPerPartnership} per partnership · ${data.pctNoMeeting30d}% with no meeting in 30d
+
+CADENCE GAP DISTRIBUTION:
+${cadenceLines}
+
+RECENT TREND (last 6 months):
+${trendLines}
+
+PARTNERSHIP ACTIVITY (top 12):
+${partnershipLines}`
+}
+
 export function MeetingAnalyticsReport() {
   const { data, isLoading } = useMeetingAnalyticsReport()
 
@@ -16,6 +60,7 @@ export function MeetingAnalyticsReport() {
       subtitle="Meeting frequency trends, partnership engagement cadence and activity gaps"
       filename="Meeting Analytics Report"
       loading={isLoading}
+      memoPrompt={data ? buildPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">

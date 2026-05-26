@@ -3,7 +3,7 @@ import {
   Cell, AreaChart, Area,
 } from 'recharts'
 import { useStatusTimeReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 type StatusTimeData = NonNullable<ReturnType<typeof useStatusTimeReport>['data']>
@@ -37,6 +37,7 @@ export function StatusTimeReport() {
       subtitle="How long partnerships and meetings stay in each status — transition frequencies and activity trends"
       filename="Status Time Analysis"
       loading={isLoading}
+      memoPrompt={data?.totalChanges > 0 ? buildSummaryPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
@@ -48,8 +49,6 @@ export function StatusTimeReport() {
             { label: 'Avg Days Per Status',  value: data.avgDaysOverall > 0 ? `${data.avgDaysOverall}d` : '—' },
             { label: 'Statuses Tracked',     value: data.avgByStatus.length },
           ]} />
-
-          <AISummaryCard prompt={data.totalChanges > 0 ? buildSummaryPrompt(data) : null} />
 
           {data.totalChanges === 0 ? (
             <div className="py-16 text-center text-zinc-400">

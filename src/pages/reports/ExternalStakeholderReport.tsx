@@ -1,6 +1,6 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useExtStakeholderReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316']
@@ -56,6 +56,7 @@ export function ExternalStakeholderReport() {
       subtitle="Activity overview for all external stakeholders — organisations, partnerships and engagement depth"
       filename="External Stakeholder Report"
       loading={isLoading}
+      memoPrompt={data ? buildSummaryPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /><Skeleton className="h-64" /></div>
@@ -67,8 +68,6 @@ export function ExternalStakeholderReport() {
             { label: 'Linked Partnerships',  value: data.rows.reduce((s, r) => s + r.partnershipCount, 0) },
             { label: 'Avg Partnerships',      value: data.total > 0 ? (data.rows.reduce((s, r) => s + r.partnershipCount, 0) / data.total).toFixed(1) : 0 },
           ]} />
-
-          <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Stakeholders by Organisation */}

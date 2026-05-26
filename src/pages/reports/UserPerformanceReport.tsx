@@ -1,6 +1,6 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts'
 import { useUserPerformanceReport } from '@/hooks/useReports'
-import { ReportPage, KpiRow, SectionTitle, ReportTable, AISummaryCard, ChartWrapper } from './ReportPage'
+import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, Info } from 'lucide-react'
 
@@ -59,6 +59,7 @@ export function UserPerformanceReport() {
       subtitle="Records created and activity breakdown per system user"
       filename="User Performance Report"
       loading={isLoading}
+      memoPrompt={data ? buildSummaryPrompt(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
@@ -78,8 +79,6 @@ export function UserPerformanceReport() {
             { label: 'Partnerships',         value: data.totals.partnerships },
             { label: 'Meetings (Ext + Int)', value: data.totals.ext + data.totals.int },
           ]} />
-
-          <AISummaryCard prompt={buildSummaryPrompt(data)} />
 
           {/* Unattributed notice */}
           {data.unattributed > 0 && (
