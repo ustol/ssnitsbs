@@ -158,7 +158,14 @@ Deno.serve(async (req) => {
     console.log(`Scraped ${projects.length} OK, ${failed.length} failed`)
     if (projects.length === 0) throw new Error('All project pages failed to load')
 
-    // 3 — Replace table (delete all, re-insert)
+    // 3 — Replace table (clear activities first due to FK, then projects, then re-insert)
+    const { error: delActErr } = await supabase
+      .from('big_push_activities')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+
+    if (delActErr) throw delActErr
+
     const { error: delErr } = await supabase
       .from('big_push_projects')
       .delete()
