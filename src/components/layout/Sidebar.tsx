@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2, MessageSquare,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
-  Activity, ClipboardList, Target, type LucideIcon,
+  Activity, ClipboardList, Target, Database, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -156,6 +156,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
 
             <SectionLabel>Resources</SectionLabel>
             <SidebarLink to="/documents" label="Document Library" icon={FolderOpen} />
+            <SidebarLink to="/data-warehouse" label="Data Warehouse" icon={Database} />
 
             <SectionLabel>Admin</SectionLabel>
             <SidebarLink to="/stakeholders/external" label="External Stakeholders" icon={Building} />

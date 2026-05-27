@@ -33,6 +33,7 @@ import { Profile } from '@/pages/users/Profile'
 import { StatusTracker } from '@/pages/status/StatusTracker'
 import { PerformanceTracker } from '@/pages/partnerships/PerformanceTracker'
 import { AuditLog } from '@/pages/audit/AuditLog'
+import { DataWarehouse } from '@/pages/datawarehouse/DataWarehouse'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -95,6 +96,8 @@ export default function App() {
           <Route path="reports/meeting-analytics" element={<MeetingAnalyticsReport />} />
           <Route path="reports/ddg-intelligence" element={<DDGIntelligenceReport />} />
           <Route path="reports/status-time" element={<StatusTimeReport />} />
+          {/* Data Warehouse */}
+          <Route path="data-warehouse" element={<DataWarehouse />} />
           {/* Audit Trail */}
           <Route path="audit" element={<AuditLog />} />
           {/* Settings */}
