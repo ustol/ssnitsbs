@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2, MessageSquare,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
-  Activity, ClipboardList, type LucideIcon,
+  Activity, ClipboardList, Target, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -148,6 +148,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/meetings/external" label="External Meetings" icon={Building2} />
             <SidebarLink to="/meetings/internal" label="Internal Meetings" icon={Users2} />
             <SidebarLink to="/status-tracker" label="Status Tracker" icon={Activity} />
+            <SidebarLink to="/performance-tracker" label="Performance Tracker" icon={Target} />
 
             <SectionLabel>Reporting</SectionLabel>
             <SidebarLink to="/feedback/ddg" label="DDG's Comments" icon={MessageSquare} badge={pendingDDG} />

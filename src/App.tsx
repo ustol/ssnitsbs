@@ -31,6 +31,7 @@ import { Settings } from '@/pages/settings/Settings'
 import { UserList } from '@/pages/users/UserList'
 import { Profile } from '@/pages/users/Profile'
 import { StatusTracker } from '@/pages/status/StatusTracker'
+import { PerformanceTracker } from '@/pages/partnerships/PerformanceTracker'
 import { AuditLog } from '@/pages/audit/AuditLog'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -82,6 +83,8 @@ export default function App() {
           <Route path="documents" element={<DocumentLibrary />} />
           {/* Status Tracker */}
           <Route path="status-tracker" element={<StatusTracker />} />
+          {/* Performance Tracker */}
+          <Route path="performance-tracker" element={<PerformanceTracker />} />
           {/* Reports */}
           <Route path="reports" element={<Reports />} />
           <Route path="reports/external-stakeholder" element={<ExternalStakeholderReport />} />
