@@ -1,140 +1,209 @@
 import { useMemo, useState } from 'react'
-import { Search, Database, RefreshCw, ExternalLink } from 'lucide-react'
-import { useDataWarehouse, type BigPushProject } from '@/hooks/useDataWarehouse'
+import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, X, Loader2 } from 'lucide-react'
+import {
+  useDataWarehouse, useProjectActivities, buildActivitySummaries,
+  useLogActivity, type BigPushProject, type ActivityType,
+} from '@/hooks/useDataWarehouse'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
-// ─── Progress badge ───────────────────────────────────────────────────────────
+// ─── Activity log modal ────────────────────────────────────────────────────────
 
-function ProgressBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-zinc-300">—</span>
+const ACTIVITY_META: Record<ActivityType, { label: string; icon: React.ElementType; color: string; isCurrency: boolean }> = {
+  registration: { label: 'Registrations', icon: UserPlus,    color: 'text-blue-600',  isCurrency: false },
+  validation:   { label: 'Validations',   icon: BadgeCheck,  color: 'text-green-600', isCurrency: true  },
+  payment:      { label: 'Payments',      icon: Wallet,      color: 'text-amber-600', isCurrency: true  },
+}
 
-  // Extract numeric percentage if present
-  const match = value.match(/(\d+(?:\.\d+)?)\s*%/)
-  const pct = match ? parseFloat(match[1]) : null
+interface ActivityModalProps {
+  open: boolean
+  onClose: () => void
+  project: BigPushProject
+  activityType: ActivityType
+}
 
-  const color =
-    pct === null ? 'text-zinc-600 bg-zinc-100' :
-    pct >= 75 ? 'text-green-700 bg-green-50' :
-    pct >= 40 ? 'text-amber-700 bg-amber-50' :
-    'text-red-700 bg-red-50'
+function ActivityModal({ open, onClose, project, activityType }: ActivityModalProps) {
+  const meta = ACTIVITY_META[activityType]
+  const today = new Date().toISOString().split('T')[0]
+  const [value, setValue] = useState('')
+  const [date, setDate] = useState(today)
+  const [notes, setNotes] = useState('')
+  const { mutateAsync, isPending } = useLogActivity()
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const num = parseFloat(value.replace(/,/g, ''))
+    if (isNaN(num) || num < 0) {
+      toast.error('Please enter a valid number')
+      return
+    }
+    try {
+      await mutateAsync({ project_id: project.id, activity_type: activityType, value: num, activity_date: date, notes: notes || undefined })
+      toast.success(`${meta.label} logged successfully`)
+      setValue('')
+      setNotes('')
+      setDate(today)
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
 
   return (
-    <div className="flex items-center gap-2 min-w-[110px]">
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b">
+          <div className={cn('w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-zinc-100')}>
+            <meta.icon size={14} className={meta.color} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight">Log {meta.label}</p>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{project.title}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0">
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+          {/* Value */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">
+              {meta.isCurrency ? 'Amount (GHS)' : 'Count (registrations)'}
+            </label>
+            <div className="relative">
+              {meta.isCurrency && (
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 font-medium pointer-events-none">
+                  GHS
+                </span>
+              )}
+              <Input
+                type="number"
+                min="0"
+                step={meta.isCurrency ? '0.01' : '1'}
+                placeholder={meta.isCurrency ? '0.00' : '0'}
+                value={value}
+                onChange={e => setValue(e.target.value)}
+                required
+                className={cn('h-9 text-sm', meta.isCurrency && 'pl-11')}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {/* Date */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Date of Activity</label>
+            <Input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              required
+              max={today}
+              className="h-9 text-sm"
+            />
+          </div>
+
+          {/* Notes (optional) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">
+              Notes <span className="text-zinc-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Any additional context…"
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+            />
+          </div>
+
+          <Button type="submit" disabled={isPending} className="w-full gap-2">
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : <meta.icon size={14} />}
+            {isPending ? 'Saving…' : `Save ${meta.label}`}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Progress badge ────────────────────────────────────────────────────────────
+
+function ProgressBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-zinc-300 text-xs">—</span>
+  const match = value.match(/(\d+(?:\.\d+)?)\s*%/)
+  const pct = match ? parseFloat(match[1]) : null
+  const color = pct === null ? 'text-zinc-600 bg-zinc-100'
+    : pct >= 75 ? 'text-green-700 bg-green-50'
+    : pct >= 40 ? 'text-amber-700 bg-amber-50'
+    : 'text-red-700 bg-red-50'
+  return (
+    <div className="flex items-center gap-1.5 min-w-[90px]">
       {pct !== null && (
         <div className="flex-1 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
           <div
-            className={cn('h-full rounded-full transition-all', pct >= 75 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-red-400')}
+            className={cn('h-full rounded-full', pct >= 75 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-red-400')}
             style={{ width: `${Math.min(pct, 100)}%` }}
           />
         </div>
       )}
-      <span className={cn('text-[0.68rem] font-semibold px-1.5 py-0.5 rounded-full shrink-0', color)}>
+      <span className={cn('text-[0.65rem] font-semibold px-1.5 py-0.5 rounded-full shrink-0', color)}>
         {value}
       </span>
     </div>
   )
 }
 
-// ─── Table row ────────────────────────────────────────────────────────────────
+// ─── Activity cell ─────────────────────────────────────────────────────────────
 
-function ProjectRow({ project, index }: { project: BigPushProject; index: number }) {
+function ActivityCell({
+  activityType, projectId, summaries, onEdit,
+}: {
+  activityType: ActivityType
+  projectId: string
+  summaries: Record<string, { registration: { value: number; date: string } | null; validation: { value: number; date: string } | null; payment: { value: number; date: string } | null }>
+  onEdit: () => void
+}) {
+  const meta = ACTIVITY_META[activityType]
+  const entry = summaries[projectId]?.[activityType] ?? null
+
+  const fmt = (v: number) =>
+    activityType === 'registration'
+      ? v.toLocaleString()
+      : `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
   return (
-    <tr className={cn('border-b last:border-0 hover:bg-zinc-50/60 transition-colors', index % 2 === 0 ? 'bg-white' : 'bg-zinc-50/30')}>
-      <td className="px-4 py-3 text-xs font-medium text-zinc-800 max-w-[220px]">
-        <div className="flex items-start gap-1.5">
-          {project.source_url ? (
-            <a
-              href={project.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-start gap-1 group hover:text-brand transition-colors"
-            >
-              <span className="leading-snug">{project.title}</span>
-              <ExternalLink size={10} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
-            </a>
-          ) : (
-            <span className="leading-snug">{project.title}</span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-xs text-zinc-700 max-w-[180px]">
-        <span className="leading-snug">{project.contractor ?? <span className="text-zinc-300">—</span>}</span>
-      </td>
-      <td className="px-4 py-3 text-xs font-mono text-zinc-800 whitespace-nowrap">
-        {project.contract_sum ?? <span className="text-zinc-300">—</span>}
-      </td>
-      <td className="px-4 py-3 text-xs text-zinc-600 whitespace-nowrap">
-        {project.start_date ?? <span className="text-zinc-300">—</span>}
-      </td>
-      <td className="px-4 py-3 text-xs text-zinc-600 whitespace-nowrap">
-        {project.exp_completion_date ?? <span className="text-zinc-300">—</span>}
-      </td>
-      <td className="px-4 py-3">
-        <ProgressBadge value={project.current_progress} />
-      </td>
-      <td className="px-4 py-3 text-xs">
-        {project.agency ? (
-          <span className="px-2 py-0.5 rounded-full text-[0.65rem] font-semibold bg-brand/10 text-brand">
-            {project.agency}
-          </span>
-        ) : <span className="text-zinc-300">—</span>}
-      </td>
-      <td className="px-4 py-3 text-xs text-zinc-600">
-        {project.region ?? <span className="text-zinc-300">—</span>}
-      </td>
-    </tr>
-  )
-}
-
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
-
-function LoadingSkeleton() {
-  return (
-    <div className="p-6 space-y-5">
-      <Skeleton className="h-8 w-64" />
-      <div className="flex gap-2">
-        <Skeleton className="h-8 w-60" />
-        <Skeleton className="h-8 w-28" />
-        <Skeleton className="h-8 w-28" />
+    <div className="flex items-center gap-1.5 group">
+      <div className="flex flex-col min-w-0">
+        {entry ? (
+          <>
+            <span className={cn('text-xs font-semibold tabular-nums', meta.color)}>{fmt(entry.value)}</span>
+            <span className="text-[0.6rem] text-zinc-400 leading-tight">{entry.date}</span>
+          </>
+        ) : (
+          <span className="text-zinc-300 text-xs">—</span>
+        )}
       </div>
-      <div className="rounded-xl border overflow-hidden">
-        <Skeleton className="h-10 w-full rounded-none" />
-        {[...Array(8)].map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full rounded-none border-t" />
-        ))}
-      </div>
+      <button
+        onClick={onEdit}
+        title={`Log ${meta.label}`}
+        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-zinc-100"
+      >
+        <meta.icon size={12} className={cn(meta.color, 'opacity-70')} />
+      </button>
     </div>
   )
 }
 
-// ─── Filter pill ──────────────────────────────────────────────────────────────
-
-function FilterPill({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap',
-        active ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80',
-      )}
-    >
-      {label}
-    </button>
-  )
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Sort helpers ──────────────────────────────────────────────────────────────
 
 type SortCol = 'title' | 'contractor' | 'agency' | 'region' | 'progress'
 type SortDir = 'asc' | 'desc'
@@ -150,8 +219,7 @@ function SortTh({
     <th
       className={cn(
         'px-4 py-3 text-left text-xs font-semibold text-zinc-500 cursor-pointer select-none whitespace-nowrap hover:text-zinc-800 transition-colors',
-        active && 'text-zinc-800',
-        className,
+        active && 'text-zinc-800', className,
       )}
       onClick={() => onSort(col)}
     >
@@ -161,55 +229,92 @@ function SortTh({
   )
 }
 
+// ─── Filter pill ───────────────────────────────────────────────────────────────
+
+function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap',
+        active ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80',
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ─── Loading skeleton ──────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="p-6 space-y-5">
+      <Skeleton className="h-8 w-64" />
+      <div className="flex gap-2"><Skeleton className="h-8 w-60" /><Skeleton className="h-8 w-28" /></div>
+      <div className="rounded-xl border overflow-hidden">
+        <Skeleton className="h-10 w-full rounded-none" />
+        {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-none border-t" />)}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
 export function DataWarehouse() {
-  const { data: projects = [], isLoading, error, refetch, isFetching } = useDataWarehouse()
+  const { data: projects = [], isLoading: loadingP, error, refetch, isFetching } = useDataWarehouse()
+  const { data: activities = [], isLoading: loadingA } = useProjectActivities()
 
   const [search, setSearch] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
   const [agencyFilter, setAgencyFilter] = useState<string | null>(null)
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({ col: 'title', dir: 'asc' })
 
+  // Modal state
+  const [modal, setModal] = useState<{ project: BigPushProject; type: ActivityType } | null>(null)
+
+  const activitySummaries = useMemo(() => buildActivitySummaries(activities), [activities])
+
   const regions = useMemo(() => {
-    const set = new Set(projects.map(p => p.region).filter(Boolean) as string[])
-    return Array.from(set).sort()
+    const s = new Set(projects.map(p => p.region).filter(Boolean) as string[])
+    return Array.from(s).sort()
   }, [projects])
 
   const agencies = useMemo(() => {
-    const set = new Set(projects.map(p => p.agency).filter(Boolean) as string[])
-    return Array.from(set).sort()
+    const s = new Set(projects.map(p => p.agency).filter(Boolean) as string[])
+    return Array.from(s).sort()
   }, [projects])
 
   const filtered = useMemo(() => {
     let list = [...projects]
-
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter(
-        p =>
-          p.title.toLowerCase().includes(q) ||
-          (p.contractor ?? '').toLowerCase().includes(q) ||
-          (p.agency ?? '').toLowerCase().includes(q) ||
-          (p.region ?? '').toLowerCase().includes(q),
+      list = list.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        (p.contractor ?? '').toLowerCase().includes(q) ||
+        (p.agency ?? '').toLowerCase().includes(q) ||
+        (p.region ?? '').toLowerCase().includes(q),
       )
     }
-
     if (regionFilter) list = list.filter(p => p.region === regionFilter)
     if (agencyFilter) list = list.filter(p => p.agency === agencyFilter)
 
     list.sort((a, b) => {
-      let av = '', bv = ''
-      if (sort.col === 'title') { av = a.title; bv = b.title }
-      else if (sort.col === 'contractor') { av = a.contractor ?? ''; bv = b.contractor ?? '' }
-      else if (sort.col === 'agency') { av = a.agency ?? ''; bv = b.agency ?? '' }
-      else if (sort.col === 'region') { av = a.region ?? ''; bv = b.region ?? '' }
-      else if (sort.col === 'progress') {
-        const extractPct = (p: BigPushProject) => {
+      if (sort.col === 'progress') {
+        const pct = (p: BigPushProject) => {
           const m = (p.current_progress ?? '').match(/(\d+(?:\.\d+)?)/)
           return m ? parseFloat(m[1]) : -1
         }
-        return sort.dir === 'asc' ? extractPct(a) - extractPct(b) : extractPct(b) - extractPct(a)
+        return sort.dir === 'asc' ? pct(a) - pct(b) : pct(b) - pct(a)
       }
-      const cmp = av.localeCompare(bv)
+      const map: Record<SortCol, string> = {
+        title: a.title, contractor: a.contractor ?? '', agency: a.agency ?? '', region: a.region ?? '', progress: '',
+      }
+      const bMap: Record<SortCol, string> = {
+        title: b.title, contractor: b.contractor ?? '', agency: b.agency ?? '', region: b.region ?? '', progress: '',
+      }
+      const cmp = map[sort.col].localeCompare(bMap[sort.col])
       return sort.dir === 'asc' ? cmp : -cmp
     })
 
@@ -220,6 +325,7 @@ export function DataWarehouse() {
     setSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })
   }
 
+  const isLoading = loadingP || loadingA
   if (isLoading) return <LoadingSkeleton />
 
   return (
@@ -239,7 +345,6 @@ export function DataWarehouse() {
         }
       />
 
-      {/* Source attribution */}
       <div className="flex items-center gap-2 text-xs text-zinc-400 -mt-2">
         <Database size={11} />
         <span>Source: Ministry of Roads &amp; Highways — Big Push Infrastructure Programme</span>
@@ -249,12 +354,7 @@ export function DataWarehouse() {
         <div className="rounded-xl border border-red-100 bg-red-50 p-6 text-center space-y-2">
           <p className="text-sm font-semibold text-red-700">Failed to load project data</p>
           <p className="text-xs text-red-500">{(error as Error).message}</p>
-          <button
-            onClick={() => refetch()}
-            className="mt-2 px-4 py-1.5 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
-          >
-            Retry
-          </button>
+          <button onClick={() => refetch()} className="mt-2 px-4 py-1.5 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors">Retry</button>
         </div>
       ) : (
         <>
@@ -270,30 +370,22 @@ export function DataWarehouse() {
                   className="pl-8 h-8 text-sm"
                 />
               </div>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {filtered.length} of {projects.length} projects
-              </span>
+              <span className="text-xs text-muted-foreground shrink-0">{filtered.length} of {projects.length} projects</span>
             </div>
 
-            {/* Region filters */}
             {regions.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-zinc-400 mr-1">Region:</span>
                 <FilterPill label="All" active={regionFilter === null} onClick={() => setRegionFilter(null)} />
-                {regions.map(r => (
-                  <FilterPill key={r} label={r} active={regionFilter === r} onClick={() => setRegionFilter(r === regionFilter ? null : r)} />
-                ))}
+                {regions.map(r => <FilterPill key={r} label={r} active={regionFilter === r} onClick={() => setRegionFilter(r === regionFilter ? null : r)} />)}
               </div>
             )}
 
-            {/* Agency filters */}
             {agencies.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-zinc-400 mr-1">Agency:</span>
                 <FilterPill label="All" active={agencyFilter === null} onClick={() => setAgencyFilter(null)} />
-                {agencies.map(a => (
-                  <FilterPill key={a} label={a} active={agencyFilter === a} onClick={() => setAgencyFilter(a === agencyFilter ? null : a)} />
-                ))}
+                {agencies.map(a => <FilterPill key={a} label={a} active={agencyFilter === a} onClick={() => setAgencyFilter(a === agencyFilter ? null : a)} />)}
               </div>
             )}
           </div>
@@ -301,28 +393,88 @@ export function DataWarehouse() {
           {/* Table */}
           <div className="rounded-xl border overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[900px]">
+              <table className="w-full text-sm min-w-[1100px]">
                 <thead>
                   <tr className="bg-zinc-50 border-b">
-                    <SortTh col="title" label="Project" className="min-w-[200px]" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
-                    <SortTh col="contractor" label="Contractor" className="min-w-[160px]" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
+                    <SortTh col="title"      label="Project"        className="min-w-[200px]" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
+                    <SortTh col="contractor" label="Contractor"     className="min-w-[150px]" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
                     <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 whitespace-nowrap">Contract Sum</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 whitespace-nowrap">Start Date</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 whitespace-nowrap">Exp. Completion</th>
-                    <SortTh col="progress" label="Progress" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
-                    <SortTh col="agency" label="Agency" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
-                    <SortTh col="region" label="Region" activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
+                    <SortTh col="progress"   label="Progress"       activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
+                    <SortTh col="agency"     label="Agency"         activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
+                    <SortTh col="region"     label="Region"         activeCol={sort.col} activeDir={sort.dir} onSort={toggleSort} />
+                    {/* Activity columns */}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-blue-600 whitespace-nowrap min-w-[120px]">
+                      <div className="flex items-center gap-1"><UserPlus size={11} />Registrations</div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-green-600 whitespace-nowrap min-w-[140px]">
+                      <div className="flex items-center gap-1"><BadgeCheck size={11} />Validations</div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-amber-600 whitespace-nowrap min-w-[140px]">
+                      <div className="flex items-center gap-1"><Wallet size={11} />Payments</div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length > 0 ? (
-                    filtered.map((p, i) => <ProjectRow key={p.id} project={p} index={i} />)
-                  ) : (
+                  {filtered.length > 0 ? filtered.map((p, i) => (
+                    <tr key={p.id} className={cn('border-b last:border-0 hover:bg-zinc-50/60 transition-colors', i % 2 === 0 ? 'bg-white' : 'bg-zinc-50/30')}>
+                      {/* Project */}
+                      <td className="px-4 py-3 text-xs font-medium text-zinc-800 max-w-[220px]">
+                        {p.source_url ? (
+                          <a href={p.source_url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1 group hover:text-brand transition-colors">
+                            <span className="leading-snug">{p.title}</span>
+                            <ExternalLink size={10} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
+                          </a>
+                        ) : (
+                          <span className="leading-snug">{p.title}</span>
+                        )}
+                      </td>
+                      {/* Contractor */}
+                      <td className="px-4 py-3 text-xs text-zinc-700 max-w-[160px]">
+                        <span className="leading-snug">{p.contractor ?? <span className="text-zinc-300">—</span>}</span>
+                      </td>
+                      {/* Contract Sum */}
+                      <td className="px-4 py-3 text-xs font-mono text-zinc-800 whitespace-nowrap">
+                        {p.contract_sum ?? <span className="text-zinc-300">—</span>}
+                      </td>
+                      {/* Start Date */}
+                      <td className="px-4 py-3 text-xs text-zinc-600 whitespace-nowrap">
+                        {p.start_date ?? <span className="text-zinc-300">—</span>}
+                      </td>
+                      {/* Exp Completion */}
+                      <td className="px-4 py-3 text-xs text-zinc-600 whitespace-nowrap">
+                        {p.exp_completion_date ?? <span className="text-zinc-300">—</span>}
+                      </td>
+                      {/* Progress */}
+                      <td className="px-4 py-3"><ProgressBadge value={p.current_progress} /></td>
+                      {/* Agency */}
+                      <td className="px-4 py-3 text-xs">
+                        {p.agency
+                          ? <span className="px-2 py-0.5 rounded-full text-[0.65rem] font-semibold bg-brand/10 text-brand">{p.agency}</span>
+                          : <span className="text-zinc-300">—</span>}
+                      </td>
+                      {/* Region */}
+                      <td className="px-4 py-3 text-xs text-zinc-600 whitespace-nowrap">
+                        {p.region ?? <span className="text-zinc-300">—</span>}
+                      </td>
+                      {/* Registrations */}
+                      <td className="px-4 py-3">
+                        <ActivityCell activityType="registration" projectId={p.id} summaries={activitySummaries} onEdit={() => setModal({ project: p, type: 'registration' })} />
+                      </td>
+                      {/* Validations */}
+                      <td className="px-4 py-3">
+                        <ActivityCell activityType="validation" projectId={p.id} summaries={activitySummaries} onEdit={() => setModal({ project: p, type: 'validation' })} />
+                      </td>
+                      {/* Payments */}
+                      <td className="px-4 py-3">
+                        <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} onEdit={() => setModal({ project: p, type: 'payment' })} />
+                      </td>
+                    </tr>
+                  )) : (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-sm text-zinc-400">
-                        {search || regionFilter || agencyFilter
-                          ? 'No projects match your filters'
-                          : 'No project data loaded yet'}
+                      <td colSpan={11} className="px-4 py-12 text-center text-sm text-zinc-400">
+                        {search || regionFilter || agencyFilter ? 'No projects match your filters' : 'No project data loaded yet'}
                       </td>
                     </tr>
                   )}
@@ -330,19 +482,24 @@ export function DataWarehouse() {
               </table>
             </div>
 
-            {/* Footer row */}
             {filtered.length > 0 && (
               <div className="px-4 py-2.5 bg-zinc-50 border-t flex items-center justify-between">
-                <span className="text-xs text-zinc-400">
-                  Showing {filtered.length} project{filtered.length !== 1 ? 's' : ''}
-                </span>
-                <span className="text-xs text-zinc-400">
-                  Big Push Infrastructure Programme · Ministry of Roads &amp; Highways
-                </span>
+                <span className="text-xs text-zinc-400">Showing {filtered.length} project{filtered.length !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-zinc-400">Big Push Infrastructure Programme · Ministry of Roads &amp; Highways</span>
               </div>
             )}
           </div>
         </>
+      )}
+
+      {/* Activity log modal */}
+      {modal && (
+        <ActivityModal
+          open={!!modal}
+          onClose={() => setModal(null)}
+          project={modal.project}
+          activityType={modal.type}
+        />
       )}
     </div>
   )

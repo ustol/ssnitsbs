@@ -4,72 +4,58 @@ const SITEMAP_URL = 'https://mrh.gov.gh/wp-sitemap-posts-portfolio-1.xml'
 const BATCH_SIZE = 8
 const FETCH_TIMEOUT_MS = 20_000
 
-// ─── HTML parsing helpers ──────────────────────────────────────────────────────
+// ─── HTML decode (handles named + numeric entities) ────────────────────────────
 
 function decodeHtml(s: string): string {
   return s
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
     .replace(/&#039;/g, "'")
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-/**
- * Extracts a field value from the page HTML.
- * Tries table (th→td), definition list (dt→dd), and bold label patterns.
- */
-function extractField(html: string, ...labels: string[]): string | null {
-  for (const label of labels) {
-    const escaped = label.replace(/\./g, '\\.')
-
-    // th → td
-    const table = new RegExp(
-      `<th[^>]*>\\s*${escaped}\\s*:?\\s*</th>\\s*<td[^>]*>\\s*([^<]+)`,
-      'is',
-    )
-    const tm = html.match(table)
-    if (tm) return decodeHtml(tm[1])
-
-    // dt → dd
-    const dl = new RegExp(
-      `<dt[^>]*>\\s*${escaped}\\s*:?\\s*</dt>\\s*<dd[^>]*>\\s*([^<]+)`,
-      'is',
-    )
-    const dm = html.match(dl)
-    if (dm) return decodeHtml(dm[1])
-
-    // <strong>Label:</strong> value  or  <b>Label:</b> value
-    const bold = new RegExp(
-      `<(?:strong|b)[^>]*>\\s*${escaped}\\s*:?\\s*</(?:strong|b)>\\s*:?\\s*([^<\\n]+)`,
-      'is',
-    )
-    const bm = html.match(bold)
-    if (bm) return decodeHtml(bm[1])
-
-    // Label: value  (plain text in a paragraph/td)
-    const plain = new RegExp(`${escaped}\\s*:\\s*([^\\n<]+)`, 'i')
-    const pm = html.match(plain)
-    if (pm) return decodeHtml(pm[1])
-  }
-  return null
-}
+// ─── Page structure (confirmed from live page inspection)
+//
+// Title:  <h2 class="separator_off" style="...">PROJECT TITLE HERE</h2>
+//
+// Fields: <h5><span style="color: #ffffff;">Contractor: <strong style="color: #ff9900;"> VALUE</strong></span></h5>
+//         <h6><span style="color: #ffffff;">Start Date: <strong style="color: #ff9900;">VALUE</strong></span></h6>
+//
+// Agency+Region share one h5:
+//         <h5><span ...>Agency: <strong ...> GHA </strong></span> <span ...>Region: <strong ...> Upper West</strong></span></h5>
 
 function extractTitle(html: string): string {
-  // Prefer entry-title / page-title class
-  const cls = html.match(/<h[12][^>]*class="[^"]*(?:entry|page)-title[^"]*"[^>]*>([^<]+)</i)
-  if (cls) return decodeHtml(cls[1])
-
-  const h1 = html.match(/<h1[^>]*>([^<]+)<\/h1>/i)
-  if (h1) return decodeHtml(h1[1])
-
-  const title = html.match(/<title>([^<|–-]+)/i)
-  if (title) return decodeHtml(title[1])
-
+  // h2 with class "separator_off" — unique to the project hero section
+  const m = html.match(/<h2[^>]*class="separator_off"[^>]*>\s*([^<]+)\s*<\/h2>/i)
+  if (m) return decodeHtml(m[1])
+  // Fallback: first h2
+  const h2 = html.match(/<h2[^>]*>\s*([^<]+)\s*<\/h2>/i)
+  if (h2) return decodeHtml(h2[1])
   return 'Unknown Project'
+}
+
+function extractField(html: string, label: string): string | null {
+  // Pattern: "Label: <strong style="color: #ff9900;"> VALUE </strong>"
+  // The value is always in the orange <strong> tag immediately after the label
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(
+    `${escaped}[:\\s]*<strong[^>]*>#ff9900[^>]*>\\s*([^<]+?)\\s*<\\/strong>`,
+    'i',
+  )
+  const m = html.match(regex)
+  if (!m) return null
+
+  const val = decodeHtml(m[1])
+  // Treat "N/A" or empty as null
+  if (!val || val.toLowerCase() === 'n/a' || val === '-') return null
+  return val
 }
 
 // ─── Fetch with timeout ────────────────────────────────────────────────────────
@@ -111,8 +97,8 @@ async function scrapeProject(url: string): Promise<ProjectRecord | null> {
     contractor: extractField(html, 'Contractor'),
     contract_sum: extractField(html, 'Contract Sum'),
     start_date: extractField(html, 'Start Date'),
-    exp_completion_date: extractField(html, 'Exp. Completion Date', 'Completion Date', 'Expected Completion'),
-    current_progress: extractField(html, 'Current Progress', 'Progress'),
+    exp_completion_date: extractField(html, 'Exp. Completion Date'),
+    current_progress: extractField(html, 'Current Progress'),
     agency: extractField(html, 'Agency'),
     region: extractField(html, 'Region'),
     source_url: url,
@@ -139,7 +125,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // 1 — Fetch sitemap to get all Big Push project URLs
+    // 1 — Fetch sitemap
     console.log('Fetching sitemap…')
     const sitemapXml = await fetchText(SITEMAP_URL, 10_000)
     if (!sitemapXml) throw new Error('Failed to fetch sitemap from mrh.gov.gh')
@@ -160,28 +146,23 @@ Deno.serve(async (req) => {
       const results = await Promise.all(batch.map(url => scrapeProject(url)))
 
       for (let j = 0; j < results.length; j++) {
-        if (results[j]) {
-          projects.push(results[j]!)
-        } else {
-          failed.push(batch[j])
-        }
+        if (results[j]) projects.push(results[j]!)
+        else failed.push(batch[j])
       }
 
-      // Brief pause between batches — polite to the server
       if (i + BATCH_SIZE < urls.length) {
         await new Promise(r => setTimeout(r, 400))
       }
     }
 
-    console.log(`Scraped ${projects.length} projects, ${failed.length} failed`)
+    console.log(`Scraped ${projects.length} OK, ${failed.length} failed`)
     if (projects.length === 0) throw new Error('All project pages failed to load')
 
-    // 3 — Replace table contents atomically
-    //     Delete existing rows, then insert fresh data
+    // 3 — Replace table (delete all, re-insert)
     const { error: delErr } = await supabase
       .from('big_push_projects')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // match-all trick
+      .neq('id', '00000000-0000-0000-0000-000000000000')
 
     if (delErr) throw delErr
 
@@ -192,7 +173,6 @@ Deno.serve(async (req) => {
     if (insErr) throw insErr
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    console.log(`Done in ${elapsed}s`)
 
     return new Response(
       JSON.stringify({
