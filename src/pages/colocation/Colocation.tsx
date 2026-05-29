@@ -18,7 +18,7 @@ async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
   return res.json() as Promise<GeoJSON.GeoJsonObject>
 }
 
-// ─── Marker icon ──────────────────────────────────────────────────────────────
+// ─── Marker icons ─────────────────────────────────────────────────────────────
 
 function makeIcon(name: string): L.DivIcon {
   return L.divIcon({
@@ -31,12 +31,28 @@ function makeIcon(name: string): L.DivIcon {
   })
 }
 
+function makeHighlightedIcon(name: string): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    iconAnchor: [11, 11],
+    html: `<div style="position:relative;text-align:center;">
+      <div style="width:22px;height:22px;background:#E8621A;border:3px solid white;border-radius:50%;box-shadow:0 0 0 5px rgba(232,98,26,0.28),0 3px 10px rgba(0,0,0,0.45);margin:0 auto;"></div>
+      <div style="position:absolute;top:26px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#E8621A;background:rgba(255,255,255,0.97);padding:3px 8px;border-radius:5px;box-shadow:0 2px 6px rgba(0,0,0,0.18);border:1.5px solid rgba(232,98,26,0.3);">${name}</div>
+    </div>`,
+  })
+}
+
 // ─── Ghana map ────────────────────────────────────────────────────────────────
 
-function GhanaMap({ locations, visible }: { locations: ColocationLocation[]; visible: boolean }) {
+function GhanaMap({ locations, visible, hoveredId }: {
+  locations: ColocationLocation[]
+  visible: boolean
+  hoveredId: string | null
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
-  const markersRef = useRef<L.Marker[]>([])
+  // keyed by location id so we can look them up for highlight
+  const markersRef = useRef<Map<string, { marker: L.Marker; name: string }>>(new Map())
 
   useEffect(() => {
     const el = containerRef.current
@@ -81,19 +97,33 @@ function GhanaMap({ locations, visible }: { locations: ColocationLocation[]; vis
     }
   }, [visible])
 
+  // Re-sync markers whenever locations change
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    markersRef.current.forEach(m => m.remove())
-    markersRef.current = []
+    markersRef.current.forEach(({ marker }) => marker.remove())
+    markersRef.current.clear()
     locations.forEach(loc => {
       const marker = L.marker(
         [Number(loc.latitude), Number(loc.longitude)],
         { icon: makeIcon(loc.name) },
       ).addTo(map)
-      markersRef.current.push(marker)
+      markersRef.current.set(loc.id, { marker, name: loc.name })
     })
   }, [locations])
+
+  // Highlight the hovered marker and restore all others
+  useEffect(() => {
+    markersRef.current.forEach(({ marker, name }, id) => {
+      if (id === hoveredId) {
+        marker.setIcon(makeHighlightedIcon(name))
+        marker.setZIndexOffset(1000)
+      } else {
+        marker.setIcon(makeIcon(name))
+        marker.setZIndexOffset(0)
+      }
+    })
+  }, [hoveredId])
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
 }
@@ -232,12 +262,14 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
 
 function LocationsTable({
   locations, isLoading,
-  onEdit, onDelete,
+  onEdit, onDelete, onHover, hoveredId,
 }: {
   locations: ColocationLocation[]
   isLoading: boolean
   onEdit: (loc: ColocationLocation) => void
   onDelete: (loc: ColocationLocation) => void
+  onHover: (id: string | null) => void
+  hoveredId: string | null
 }) {
   return (
     <div className="flex flex-col h-full">
@@ -270,16 +302,22 @@ function LocationsTable({
           locations.map((loc, i) => (
             <div
               key={loc.id}
+              onMouseEnter={() => onHover(loc.id)}
+              onMouseLeave={() => onHover(null)}
               className={cn(
-                'grid items-center border-b border-zinc-100 transition-colors',
-                'hover:bg-orange-50/60 active:bg-orange-50',
-                i % 2 === 0 ? 'bg-white' : 'bg-zinc-50/50',
+                'grid items-center border-b border-zinc-100 transition-colors cursor-default',
+                hoveredId === loc.id
+                  ? 'bg-orange-50 border-l-2 border-l-brand'
+                  : i % 2 === 0 ? 'bg-white hover:bg-orange-50/50' : 'bg-zinc-50/50 hover:bg-orange-50/50',
               )}
               style={{ gridTemplateColumns: '1fr 110px 72px' }}
             >
               {/* Name */}
               <div className="flex items-center gap-2 px-4 py-3 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-brand shrink-0" />
+                <div className={cn(
+                  'w-2 h-2 rounded-full shrink-0 transition-all',
+                  hoveredId === loc.id ? 'w-2.5 h-2.5 bg-brand shadow-sm' : 'bg-brand',
+                )} />
                 <span className="text-xs font-semibold text-zinc-800 truncate">{loc.name}</span>
               </div>
 
@@ -329,6 +367,7 @@ export function Colocation() {
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ColocationLocation | null>(null)
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
+  const [hoveredLocId, setHoveredLocId] = useState<string | null>(null)
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}" from the map?`)) return
@@ -400,6 +439,8 @@ export function Colocation() {
             isLoading={isLoading}
             onEdit={loc => setEditTarget(loc)}
             onDelete={handleDelete}
+            onHover={setHoveredLocId}
+            hoveredId={hoveredLocId}
           />
         </div>
 
@@ -409,7 +450,7 @@ export function Colocation() {
           'flex-1',
           mobileTab === 'map' ? 'block' : 'hidden md:block',
         )}>
-          <GhanaMap locations={locations} visible={mobileTab === 'map'} />
+          <GhanaMap locations={locations} visible={mobileTab === 'map'} hoveredId={hoveredLocId} />
         </div>
 
       </div>
