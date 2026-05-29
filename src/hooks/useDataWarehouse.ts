@@ -17,7 +17,7 @@ export interface BigPushProject {
   created_at: string
 }
 
-export type ActivityType = 'registration' | 'validation' | 'payment'
+export type ActivityType = 'registration' | 'validation' | 'payment' | 'inspection'
 
 export interface BigPushActivity {
   id: string
@@ -35,6 +35,7 @@ export interface ActivitySummary {
   registration: { value: number; date: string } | null
   validation: { value: number; date: string } | null
   payment: { value: number; date: string } | null
+  inspection: { value: number; date: string } | null
 }
 
 // ─── Projects query ────────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ export function buildActivitySummaries(
   const map: Record<string, ActivitySummary> = {}
   for (const a of activities) {
     if (!map[a.project_id]) {
-      map[a.project_id] = { project_id: a.project_id, registration: null, validation: null, payment: null }
+      map[a.project_id] = { project_id: a.project_id, registration: null, validation: null, payment: null, inspection: null }
     }
     const entry = map[a.project_id]
     const key = a.activity_type as ActivityType

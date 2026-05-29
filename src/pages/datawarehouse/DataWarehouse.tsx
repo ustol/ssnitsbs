@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, X, Loader2 } from 'lucide-react'
+import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, X, Loader2, ClipboardCheck } from 'lucide-react'
 import {
   useDataWarehouse, useProjectActivities, buildActivitySummaries,
   useLogActivity, type BigPushProject, type ActivityType,
@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 
 // ─── Activity log modal ────────────────────────────────────────────────────────
 
-const ACTIVITY_META: Record<ActivityType, { label: string; icon: React.ElementType; color: string; isCurrency: boolean }> = {
+const ACTIVITY_META: Record<Exclude<ActivityType, 'inspection'>, { label: string; icon: React.ElementType; color: string; isCurrency: boolean }> = {
   registration: { label: 'Registrations', icon: UserPlus,    color: 'text-blue-600',  isCurrency: false },
   validation:   { label: 'Validations',   icon: BadgeCheck,  color: 'text-green-600', isCurrency: true  },
   payment:      { label: 'Payments',      icon: Wallet,      color: 'text-amber-600', isCurrency: true  },
@@ -24,7 +24,7 @@ interface ActivityModalProps {
   open: boolean
   onClose: () => void
   project: BigPushProject
-  activityType: ActivityType
+  activityType: Exclude<ActivityType, 'inspection'>
 }
 
 function ActivityModal({ open, onClose, project, activityType }: ActivityModalProps) {
@@ -198,6 +198,108 @@ function ActivityCell({
         className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-zinc-100"
       >
         <meta.icon size={12} className={cn(meta.color, 'opacity-70')} />
+      </button>
+    </div>
+  )
+}
+
+// ─── Inspection modal ──────────────────────────────────────────────────────────
+
+function InspectionModal({ open, onClose, project }: { open: boolean; onClose: () => void; project: BigPushProject }) {
+  const today = new Date().toISOString().split('T')[0]
+  const [date, setDate] = useState(today)
+  const [notes, setNotes] = useState('')
+  const { mutateAsync, isPending } = useLogActivity()
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    try {
+      await mutateAsync({ project_id: project.id, activity_type: 'inspection', value: 1, activity_date: date, notes: notes || undefined })
+      toast.success('Inspection logged successfully')
+      setNotes('')
+      setDate(today)
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b">
+          <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-zinc-100">
+            <ClipboardCheck size={14} className="text-purple-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight">Log Inspection</p>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{project.title}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0">
+            <X size={15} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Inspection Date</label>
+            <Input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              required
+              max={today}
+              className="h-9 text-sm"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">
+              Notes <span className="text-zinc-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Any additional context…"
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+            />
+          </div>
+          <Button type="submit" disabled={isPending} className="w-full gap-2">
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />}
+            {isPending ? 'Saving…' : 'Save Inspection'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Inspection cell ───────────────────────────────────────────────────────────
+
+function InspectionCell({ projectId, summaries, onEdit }: {
+  projectId: string
+  summaries: Record<string, { inspection: { value: number; date: string } | null }>
+  onEdit: () => void
+}) {
+  const entry = summaries[projectId]?.inspection ?? null
+  return (
+    <div className="flex items-center gap-1.5 group">
+      <div className="flex flex-col min-w-0">
+        {entry ? (
+          <>
+            <span className="text-xs font-semibold text-purple-600 tabular-nums">{entry.date}</span>
+            <span className="text-[0.6rem] text-zinc-400 leading-tight">Last inspected</span>
+          </>
+        ) : (
+          <span className="text-zinc-300 text-xs">—</span>
+        )}
+      </div>
+      <button
+        onClick={onEdit}
+        title="Log Inspection"
+        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-zinc-100"
+      >
+        <ClipboardCheck size={12} className="text-purple-600 opacity-70" />
       </button>
     </div>
   )
@@ -414,6 +516,9 @@ export function DataWarehouse() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-amber-600 whitespace-nowrap min-w-[140px]">
                       <div className="flex items-center gap-1"><Wallet size={11} />Payments</div>
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-purple-600 whitespace-nowrap min-w-[140px]">
+                      <div className="flex items-center gap-1"><ClipboardCheck size={11} />Inspection</div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,10 +575,14 @@ export function DataWarehouse() {
                       <td className="px-4 py-3">
                         <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} onEdit={() => setModal({ project: p, type: 'payment' })} />
                       </td>
+                      {/* Inspection */}
+                      <td className="px-4 py-3">
+                        <InspectionCell projectId={p.id} summaries={activitySummaries} onEdit={() => setModal({ project: p, type: 'inspection' })} />
+                      </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={11} className="px-4 py-12 text-center text-sm text-zinc-400">
+                      <td colSpan={12} className="px-4 py-12 text-center text-sm text-zinc-400">
                         {search || regionFilter || agencyFilter ? 'No projects match your filters' : 'No project data loaded yet'}
                       </td>
                     </tr>
@@ -493,12 +602,19 @@ export function DataWarehouse() {
       )}
 
       {/* Activity log modal */}
-      {modal && (
+      {modal && modal.type !== 'inspection' && (
         <ActivityModal
           open={!!modal}
           onClose={() => setModal(null)}
           project={modal.project}
           activityType={modal.type}
+        />
+      )}
+      {modal && modal.type === 'inspection' && (
+        <InspectionModal
+          open={!!modal}
+          onClose={() => setModal(null)}
+          project={modal.project}
         />
       )}
     </div>
