@@ -5,35 +5,43 @@ import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,
 } from '@/hooks/useColocation'
-import { ghanaGeoJSON, GHANA_BOUNDS } from '@/data/ghana-boundary'
+import { GHANA_BOUNDS } from '@/data/ghana-boundary'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-// ─── Leaflet marker icon ───────────────────────────────────────────────────────
+// Real Ghana GeoJSON from Natural Earth / world.geo.json
+const GHANA_GEOJSON_URL =
+  'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/GHA.geo.json'
 
-function makeIcon(): L.DivIcon {
+// ─── Marker icon (dot + name label combined) ──────────────────────────────────
+
+function makeIcon(name: string): L.DivIcon {
   return L.divIcon({
     className: '',
     iconAnchor: [8, 8],
-    html: `<div style="width:16px;height:16px;background:#E8621A;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+    html: `<div style="position:relative;text-align:center;">
+      <div style="width:16px;height:16px;background:#E8621A;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);margin:0 auto;"></div>
+      <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:#111827;background:rgba(255,255,255,0.92);padding:2px 7px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.15);">${name}</div>
+    </div>`,
   })
 }
 
-// ─── Plain Ghana map (no tiles, GeoJSON outline only) ─────────────────────────
+// ─── Plain Ghana map ──────────────────────────────────────────────────────────
 
 function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const markersRef = useRef<L.Marker[]>([])
 
+  // Initialise map + fetch accurate Ghana boundary once
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
 
-    // Remove stale Leaflet ID from React StrictMode double-mount
+    // Reset stale Leaflet ID (React StrictMode double-mount)
     delete (el as unknown as Record<string, unknown>)['_leaflet_id']
 
     const map = L.map(el, {
@@ -47,30 +55,37 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
       zoomControl: true,
     })
 
-    // Plain background — no tile layer
-    el.style.background = '#d6e4ec'
+    // Light blue-gray background so only Ghana is visible
+    el.style.background = '#cfe0ea'
 
-    // Ghana country polygon
-    L.geoJSON(ghanaGeoJSON as GeoJSON.Feature, {
-      style: {
-        fillColor: '#f0ece4',
-        fillOpacity: 1,
-        color: '#9ca3af',
-        weight: 1.5,
-      },
-    }).addTo(map)
-
-    // Fit tightly to Ghana
-    map.fitBounds(GHANA_BOUNDS, { padding: [12, 12] })
-
+    map.fitBounds(GHANA_BOUNDS, { padding: [20, 20] })
     mapRef.current = map
+
+    // Fetch the real Ghana GeoJSON boundary
+    fetch(GHANA_GEOJSON_URL)
+      .then(r => r.json())
+      .then((data: GeoJSON.GeoJsonObject) => {
+        if (!mapRef.current) return
+        L.geoJSON(data, {
+          style: {
+            fillColor: '#eee8dc',
+            fillOpacity: 1,
+            color: '#a8b5c0',
+            weight: 1.8,
+          },
+        }).addTo(map)
+      })
+      .catch(() => {
+        // silent — map still works, just no country outline
+      })
+
     return () => {
       map.remove()
       mapRef.current = null
     }
   }, [])
 
-  // Sync markers whenever locations list changes
+  // Re-sync markers whenever the locations list changes
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -79,21 +94,10 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
     markersRef.current = []
 
     locations.forEach(loc => {
-      const marker = L.marker([Number(loc.latitude), Number(loc.longitude)], { icon: makeIcon() })
-      marker.bindTooltip(
-        `<strong style="font-size:12px">${loc.name}</strong><br/>`
-        + `<span style="font-size:11px;color:#6b7280">${Number(loc.latitude).toFixed(5)}, ${Number(loc.longitude).toFixed(5)}</span>`,
-        { direction: 'top', offset: [0, -14], opacity: 0.97 },
-      )
-
-      // Permanent name label below the dot
-      const label = L.divIcon({
-        className: '',
-        iconAnchor: [-2, -6],
-        html: `<div style="white-space:nowrap;font-size:11px;font-weight:600;color:#111827;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">${loc.name}</div>`,
-      })
-      L.marker([Number(loc.latitude), Number(loc.longitude)], { icon: label, interactive: false }).addTo(map)
-      marker.addTo(map)
+      const marker = L.marker(
+        [Number(loc.latitude), Number(loc.longitude)],
+        { icon: makeIcon(loc.name) },
+      ).addTo(map)
       markersRef.current.push(marker)
     })
   }, [locations])
@@ -175,36 +179,25 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
               autoFocus
             />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-zinc-700">Latitude</label>
               <Input
-                type="number"
-                step="any"
-                value={lat}
-                onChange={e => setLat(e.target.value)}
-                placeholder="e.g. 5.6037"
-                required
-                className="h-9 text-sm"
+                type="number" step="any"
+                value={lat} onChange={e => setLat(e.target.value)}
+                placeholder="e.g. 5.6037" required className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-zinc-700">Longitude</label>
               <Input
-                type="number"
-                step="any"
-                value={lng}
-                onChange={e => setLng(e.target.value)}
-                placeholder="e.g. -0.1870"
-                required
-                className="h-9 text-sm"
+                type="number" step="any"
+                value={lng} onChange={e => setLng(e.target.value)}
+                placeholder="e.g. -0.1870" required className="h-9 text-sm"
               />
             </div>
           </div>
-
           <p className="text-[0.7rem] text-zinc-400">Ghana: approx. 4.5°–11.2° N, 3.3° W–1.2° E</p>
-
           <Button type="submit" disabled={isPending} className="w-full gap-2">
             {isPending
               ? <Loader2 size={14} className="animate-spin" />
@@ -253,22 +246,25 @@ export function Colocation() {
         />
       </div>
 
-      {/* Body — table left, map right */}
+      {/* Body: table left, map right */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
         {/* ── Left: locations table ── */}
         <div style={{ width: '420px', flexShrink: 0, borderRight: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', background: 'white' }}>
-          {/* Table header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', padding: '10px 16px', borderBottom: '1px solid #e4e4e7', background: '#fafafa' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#71717a' }}>Name of Location</span>
-            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#71717a' }}>Coordinates</span>
-            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#71717a', textAlign: 'center' }}>Actions</span>
+
+          {/* Table header row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 72px', padding: '10px 16px', borderBottom: '1px solid #e4e4e7', background: '#fafafa' }}>
+            {['Name of Location', 'Coordinates', 'Actions'].map(h => (
+              <span key={h} style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#71717a', textAlign: h === 'Actions' ? 'center' : 'left' }}>
+                {h}
+              </span>
+            ))}
           </div>
 
           {/* Table body */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {isLoading ? (
-              <div style={{ padding: '40px', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ padding: '48px', display: 'flex', justifyContent: 'center' }}>
                 <Loader2 size={20} className="animate-spin text-zinc-400" />
               </div>
             ) : locations.length === 0 ? (
@@ -283,17 +279,18 @@ export function Colocation() {
                   key={loc.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 80px',
+                    gridTemplateColumns: '1fr 1fr 72px',
                     padding: '11px 16px',
                     borderBottom: '1px solid #f4f4f5',
                     background: i % 2 === 0 ? 'white' : '#fafafa',
                     alignItems: 'center',
+                    transition: 'background 0.1s',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#fff7ed')}
                   onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#fafafa')}
                 >
                   {/* Name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, paddingRight: '8px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#E8621A', flexShrink: 0 }} />
                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#18181b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {loc.name}
@@ -301,18 +298,22 @@ export function Colocation() {
                   </div>
 
                   {/* Coordinates */}
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ paddingRight: '8px' }}>
                     <span style={{ fontSize: '11px', color: '#52525b', fontFamily: 'monospace' }}>
-                      {Number(loc.latitude).toFixed(4)}°, {Number(loc.longitude).toFixed(4)}°
+                      {Number(loc.latitude).toFixed(4)}°
+                    </span>
+                    <br />
+                    <span style={{ fontSize: '11px', color: '#52525b', fontFamily: 'monospace' }}>
+                      {Number(loc.longitude).toFixed(4)}°
                     </span>
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                     <button
                       onClick={() => setEditTarget(loc)}
                       title="Edit"
-                      style={{ padding: '4px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                      style={{ padding: '5px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#f4f4f5')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
@@ -321,7 +322,7 @@ export function Colocation() {
                     <button
                       onClick={() => handleDelete(loc)}
                       title="Delete"
-                      style={{ padding: '4px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                      style={{ padding: '5px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#fee2e2')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
@@ -340,23 +341,11 @@ export function Colocation() {
         </div>
       </div>
 
-      {/* Add modal */}
       {addOpen && (
-        <LocationModal
-          key="add"
-          open={addOpen}
-          onClose={() => setAddOpen(false)}
-        />
+        <LocationModal key="add" open={addOpen} onClose={() => setAddOpen(false)} />
       )}
-
-      {/* Edit modal */}
       {editTarget && (
-        <LocationModal
-          key={editTarget.id}
-          open={!!editTarget}
-          onClose={() => setEditTarget(null)}
-          existing={editTarget}
-        />
+        <LocationModal key={editTarget.id} open={!!editTarget} onClose={() => setEditTarget(null)} existing={editTarget} />
       )}
     </div>
   )
