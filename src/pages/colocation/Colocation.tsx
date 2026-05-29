@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import L from 'leaflet'
 import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
+
+// Leaflet is loaded via CDN in index.html (avoids Vite bundler conflicts).
+// @types/leaflet provides TypeScript types; the runtime comes from window.L.
+declare const L: typeof import('leaflet')
 import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,

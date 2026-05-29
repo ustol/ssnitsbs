@@ -9,7 +9,5 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  optimizeDeps: {
-    include: ['leaflet'],
-  },
+  // Leaflet is loaded via CDN in index.html — no optimizeDeps needed
 })
