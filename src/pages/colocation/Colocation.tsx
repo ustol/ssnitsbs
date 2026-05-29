@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react'
 import L from 'leaflet'
 import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
 import {
@@ -44,89 +44,90 @@ function makeHighlightedIcon(name: string): L.DivIcon {
 
 // ─── Ghana map ────────────────────────────────────────────────────────────────
 
-function GhanaMap({ locations, visible, hoveredId }: {
-  locations: ColocationLocation[]
-  visible: boolean
-  hoveredId: string | null
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  // keyed by location id so we can look them up for highlight
-  const markersRef = useRef<Map<string, { marker: L.Marker; name: string }>>(new Map())
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    delete (el as unknown as Record<string, unknown>)['_leaflet_id']
-
-    const map = L.map(el, {
-      center: [7.9465, -1.0232],
-      zoom: 7,
-      minZoom: 6,
-      maxZoom: 12,
-      maxBounds: GHANA_BOUNDS,
-      maxBoundsViscosity: 1.0,
-      attributionControl: false,
-      zoomControl: true,
-    })
-    el.style.background = '#cfe0ea'
-    map.fitBounds(GHANA_BOUNDS, { padding: [20, 20] })
-    mapRef.current = map
-
-    let mounted = true
-    fetchGhanaRegions()
-      .then(data => {
-        if (!mounted || !mapRef.current) return
-        L.geoJSON(data, {
-          style: { fillColor: '#eee8dc', fillOpacity: 1, color: '#8fa3b0', weight: 1 },
-        }).addTo(map)
-      })
-      .catch(() => {})
-
-    return () => {
-      mounted = false
-      map.remove()
-      mapRef.current = null
-    }
-  }, [])
-
-  // Invalidate size when map becomes visible again (mobile tab switch)
-  useEffect(() => {
-    if (visible && mapRef.current) {
-      setTimeout(() => mapRef.current?.invalidateSize(), 60)
-    }
-  }, [visible])
-
-  // Re-sync markers whenever locations change
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    markersRef.current.forEach(({ marker }) => marker.remove())
-    markersRef.current.clear()
-    locations.forEach(loc => {
-      const marker = L.marker(
-        [Number(loc.latitude), Number(loc.longitude)],
-        { icon: makeIcon(loc.name) },
-      ).addTo(map)
-      markersRef.current.set(loc.id, { marker, name: loc.name })
-    })
-  }, [locations])
-
-  // Highlight the hovered marker and restore all others
-  useEffect(() => {
-    markersRef.current.forEach(({ marker, name }, id) => {
-      if (id === hoveredId) {
-        marker.setIcon(makeHighlightedIcon(name))
-        marker.setZIndexOffset(1000)
-      } else {
-        marker.setIcon(makeIcon(name))
-        marker.setZIndexOffset(0)
-      }
-    })
-  }, [hoveredId])
-
-  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+interface GhanaMapHandle {
+  highlight: (id: string | null) => void
 }
+
+const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; visible: boolean }>(
+  function GhanaMap({ locations, visible }, ref) {
+    const containerRef = useRef<HTMLDivElement>(null)
+    const mapRef = useRef<L.Map | null>(null)
+    const markersRef = useRef<Map<string, { marker: L.Marker; name: string }>>(new Map())
+
+    // Expose highlight() so the parent can call it directly from mouse events
+    useImperativeHandle(ref, () => ({
+      highlight(id: string | null) {
+        markersRef.current.forEach(({ marker, name }, markerId) => {
+          if (markerId === id) {
+            marker.setIcon(makeHighlightedIcon(name))
+            marker.setZIndexOffset(1000)
+          } else {
+            marker.setIcon(makeIcon(name))
+            marker.setZIndexOffset(0)
+          }
+        })
+      },
+    }))
+
+    useEffect(() => {
+      const el = containerRef.current
+      if (!el) return
+      delete (el as unknown as Record<string, unknown>)['_leaflet_id']
+
+      const map = L.map(el, {
+        center: [7.9465, -1.0232],
+        zoom: 7,
+        minZoom: 6,
+        maxZoom: 12,
+        maxBounds: GHANA_BOUNDS,
+        maxBoundsViscosity: 1.0,
+        attributionControl: false,
+        zoomControl: true,
+      })
+      el.style.background = '#cfe0ea'
+      map.fitBounds(GHANA_BOUNDS, { padding: [20, 20] })
+      mapRef.current = map
+
+      let mounted = true
+      fetchGhanaRegions()
+        .then(data => {
+          if (!mounted || !mapRef.current) return
+          L.geoJSON(data, {
+            style: { fillColor: '#eee8dc', fillOpacity: 1, color: '#8fa3b0', weight: 1 },
+          }).addTo(map)
+        })
+        .catch(() => {})
+
+      return () => {
+        mounted = false
+        map.remove()
+        mapRef.current = null
+      }
+    }, [])
+
+    useEffect(() => {
+      if (visible && mapRef.current) {
+        setTimeout(() => mapRef.current?.invalidateSize(), 60)
+      }
+    }, [visible])
+
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map) return
+      markersRef.current.forEach(({ marker }) => marker.remove())
+      markersRef.current.clear()
+      locations.forEach(loc => {
+        const marker = L.marker(
+          [Number(loc.latitude), Number(loc.longitude)],
+          { icon: makeIcon(loc.name) },
+        ).addTo(map)
+        markersRef.current.set(loc.id, { marker, name: loc.name })
+      })
+    }, [locations])
+
+    return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+  },
+)
 
 // ─── Location modal ───────────────────────────────────────────────────────────
 
@@ -368,6 +369,12 @@ export function Colocation() {
   const [editTarget, setEditTarget] = useState<ColocationLocation | null>(null)
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
   const [hoveredLocId, setHoveredLocId] = useState<string | null>(null)
+  const ghanaMapRef = useRef<GhanaMapHandle>(null)
+
+  function handleHover(id: string | null) {
+    setHoveredLocId(id)           // highlights the table row
+    ghanaMapRef.current?.highlight(id)  // highlights the map marker directly
+  }
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}" from the map?`)) return
@@ -439,7 +446,7 @@ export function Colocation() {
             isLoading={isLoading}
             onEdit={loc => setEditTarget(loc)}
             onDelete={handleDelete}
-            onHover={setHoveredLocId}
+            onHover={handleHover}
             hoveredId={hoveredLocId}
           />
         </div>
@@ -450,7 +457,7 @@ export function Colocation() {
           'flex-1',
           mobileTab === 'map' ? 'block' : 'hidden md:block',
         )}>
-          <GhanaMap locations={locations} visible={mobileTab === 'map'} hoveredId={hoveredLocId} />
+          <GhanaMap ref={ghanaMapRef} locations={locations} visible={mobileTab === 'map'} />
         </div>
 
       </div>
