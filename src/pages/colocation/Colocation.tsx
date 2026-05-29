@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
+import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map as MapIcon, List } from 'lucide-react'
 import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,
@@ -406,7 +406,7 @@ export function Colocation() {
               : 'border-transparent text-zinc-500',
           )}
         >
-          <Map size={13} />
+          <MapIcon size={13} />
           Map
         </button>
         <button
