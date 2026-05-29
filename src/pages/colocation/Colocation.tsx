@@ -1,26 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { MapPin, Plus, X, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
 import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,
 } from '@/hooks/useColocation'
 import { GHANA_BOUNDS } from '@/data/ghana-boundary'
-import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-// Fetch via our own Vercel Edge API route — server-side fetch has no CORS
-// restrictions, and the response is CDN-cached for 24 hours.
 async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
   const res = await fetch('/api/ghana-regions')
   if (!res.ok) throw new Error(`ghana-regions API returned ${res.status}`)
   return res.json() as Promise<GeoJSON.GeoJsonObject>
 }
 
-// ─── Marker icon (dot + name label combined) ──────────────────────────────────
+// ─── Marker icon ──────────────────────────────────────────────────────────────
 
 function makeIcon(name: string): L.DivIcon {
   return L.divIcon({
@@ -33,19 +31,16 @@ function makeIcon(name: string): L.DivIcon {
   })
 }
 
-// ─── Plain Ghana map ──────────────────────────────────────────────────────────
+// ─── Ghana map ────────────────────────────────────────────────────────────────
 
-function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
+function GhanaMap({ locations, visible }: { locations: ColocationLocation[]; visible: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const markersRef = useRef<L.Marker[]>([])
 
-  // Initialise map + fetch accurate Ghana boundary once
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-
-    // Reset stale Leaflet ID (React StrictMode double-mount)
     delete (el as unknown as Record<string, unknown>)['_leaflet_id']
 
     const map = L.map(el, {
@@ -58,28 +53,19 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
       attributionControl: false,
       zoomControl: true,
     })
-
-    // Light blue-gray background so only Ghana is visible
     el.style.background = '#cfe0ea'
-
     map.fitBounds(GHANA_BOUNDS, { padding: [20, 20] })
     mapRef.current = map
 
-    // Load Ghana's 16 regions — try sources in order until one succeeds
     let mounted = true
     fetchGhanaRegions()
       .then(data => {
         if (!mounted || !mapRef.current) return
         L.geoJSON(data, {
-          style: {
-            fillColor: '#eee8dc',
-            fillOpacity: 1,
-            color: '#8fa3b0',
-            weight: 1,
-          },
+          style: { fillColor: '#eee8dc', fillOpacity: 1, color: '#8fa3b0', weight: 1 },
         }).addTo(map)
       })
-      .catch(() => { /* all sources failed — map still works with markers only */ })
+      .catch(() => {})
 
     return () => {
       mounted = false
@@ -88,14 +74,18 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
     }
   }, [])
 
-  // Re-sync markers whenever the locations list changes
+  // Invalidate size when map becomes visible again (mobile tab switch)
+  useEffect(() => {
+    if (visible && mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 60)
+    }
+  }, [visible])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-
     markersRef.current.forEach(m => m.remove())
     markersRef.current = []
-
     locations.forEach(loc => {
       const marker = L.marker(
         [Number(loc.latitude), Number(loc.longitude)],
@@ -108,7 +98,7 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
 }
 
-// ─── Location modal (shared for add & edit) ────────────────────────────────────
+// ─── Location modal ───────────────────────────────────────────────────────────
 
 interface LocationModalProps {
   open: boolean
@@ -154,8 +144,8 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm p-0 gap-0 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b">
           <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-orange-50">
             <MapPin size={14} className="text-brand" />
           </div>
@@ -165,46 +155,33 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
               {isEdit ? 'Update location details' : 'Pin a location on the Ghana map'}
             </p>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0">
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 p-1">
             <X size={15} />
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-3.5">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">Name of Location</label>
             <Input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. Accra Office, Kumasi Hub"
-              required
-              className="h-9 text-sm"
-              autoFocus
+              value={name} onChange={e => setName(e.target.value)}
+              placeholder="e.g. Accra Office" required className="h-9 text-sm" autoFocus
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-zinc-700">Latitude</label>
-              <Input
-                type="number" step="any"
-                value={lat} onChange={e => setLat(e.target.value)}
-                placeholder="e.g. 5.6037" required className="h-9 text-sm"
-              />
+              <Input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)}
+                placeholder="e.g. 5.6037" required className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-zinc-700">Longitude</label>
-              <Input
-                type="number" step="any"
-                value={lng} onChange={e => setLng(e.target.value)}
-                placeholder="e.g. -0.1870" required className="h-9 text-sm"
-              />
+              <Input type="number" step="any" value={lng} onChange={e => setLng(e.target.value)}
+                placeholder="e.g. -0.1870" required className="h-9 text-sm" />
             </div>
           </div>
-          <p className="text-[0.7rem] text-zinc-400">Ghana: approx. 4.5°–11.2° N, 3.3° W–1.2° E</p>
-          <Button type="submit" disabled={isPending} className="w-full gap-2">
-            {isPending
-              ? <Loader2 size={14} className="animate-spin" />
-              : isEdit ? <Pencil size={14} /> : <Plus size={14} />}
+          <p className="text-[0.7rem] text-zinc-400">Ghana: 4.5°–11.2° N, 3.3° W–1.2° E</p>
+          <Button type="submit" disabled={isPending} className="w-full gap-2 h-9">
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : isEdit ? <Pencil size={14} /> : <Plus size={14} />}
             {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add to Map'}
           </Button>
         </form>
@@ -213,7 +190,99 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
+// ─── Locations table ──────────────────────────────────────────────────────────
+
+function LocationsTable({
+  locations, isLoading,
+  onEdit, onDelete,
+}: {
+  locations: ColocationLocation[]
+  isLoading: boolean
+  onEdit: (loc: ColocationLocation) => void
+  onDelete: (loc: ColocationLocation) => void
+}) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Column headers */}
+      <div className="grid border-b bg-zinc-50 shrink-0"
+        style={{ gridTemplateColumns: '1fr 110px 72px' }}>
+        {['Name of Location', 'Coordinates', 'Actions'].map(h => (
+          <span key={h} className={cn(
+            'px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500',
+            h === 'Actions' && 'text-center',
+          )}>
+            {h}
+          </span>
+        ))}
+      </div>
+
+      {/* Rows */}
+      <div className="flex-1 overflow-y-auto">
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 size={20} className="animate-spin text-zinc-400" />
+          </div>
+        ) : locations.length === 0 ? (
+          <div className="flex flex-col items-center py-14 px-6 text-center">
+            <MapPin size={28} className="text-zinc-300 mb-3" />
+            <p className="text-sm font-semibold text-zinc-500">No locations yet</p>
+            <p className="text-xs text-zinc-400 mt-1">Tap "Add New Location" to get started</p>
+          </div>
+        ) : (
+          locations.map((loc, i) => (
+            <div
+              key={loc.id}
+              className={cn(
+                'grid items-center border-b border-zinc-100 transition-colors',
+                'hover:bg-orange-50/60 active:bg-orange-50',
+                i % 2 === 0 ? 'bg-white' : 'bg-zinc-50/50',
+              )}
+              style={{ gridTemplateColumns: '1fr 110px 72px' }}
+            >
+              {/* Name */}
+              <div className="flex items-center gap-2 px-4 py-3 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-brand shrink-0" />
+                <span className="text-xs font-semibold text-zinc-800 truncate">{loc.name}</span>
+              </div>
+
+              {/* Coordinates */}
+              <div className="px-2 py-3">
+                <p className="text-[11px] text-zinc-500 font-mono leading-tight">
+                  {Number(loc.latitude).toFixed(4)}°
+                </p>
+                <p className="text-[11px] text-zinc-500 font-mono leading-tight">
+                  {Number(loc.longitude).toFixed(4)}°
+                </p>
+              </div>
+
+              {/* Actions — always visible (touch-friendly) */}
+              <div className="flex items-center justify-center gap-1 px-2 py-3">
+                <button
+                  onClick={() => onEdit(loc)}
+                  className="p-1.5 rounded-md hover:bg-zinc-100 active:bg-zinc-200 transition-colors"
+                  title="Edit"
+                >
+                  <Pencil size={13} className="text-zinc-500" />
+                </button>
+                <button
+                  onClick={() => onDelete(loc)}
+                  className="p-1.5 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 size={13} className="text-red-400" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+type MobileTab = 'map' | 'list'
 
 export function Colocation() {
   const { data: locations = [], isLoading } = useColocationLocations()
@@ -221,6 +290,7 @@ export function Colocation() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ColocationLocation | null>(null)
+  const [mobileTab, setMobileTab] = useState<MobileTab>('map')
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}" from the map?`)) return
@@ -233,115 +303,77 @@ export function Colocation() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 52px)' }}>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
 
-      {/* Page header */}
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid #e4e4e7', background: 'white', flexShrink: 0 }}>
-        <PageHeader
-          title="Colocation"
-          subtitle={`${locations.length} location${locations.length !== 1 ? 's' : ''} pinned`}
-          actions={
-            <Button onClick={() => setAddOpen(true)} className="gap-2 h-8 text-xs">
-              <Plus size={13} />
-              Add New Location
-            </Button>
-          }
-        />
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3 md:py-4 border-b bg-white shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold text-zinc-900 leading-tight">Colocation</h1>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {locations.length} location{locations.length !== 1 ? 's' : ''} pinned
+          </p>
+        </div>
+        <Button onClick={() => setAddOpen(true)} className="gap-1.5 h-8 text-xs shrink-0">
+          <Plus size={13} />
+          <span className="hidden sm:inline">Add New Location</span>
+          <span className="sm:hidden">Add</span>
+        </Button>
       </div>
 
-      {/* Body: table left, map right */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      {/* ── Mobile tab bar (hidden on md+) ── */}
+      <div className="flex md:hidden border-b bg-white shrink-0">
+        <button
+          onClick={() => setMobileTab('map')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors',
+            mobileTab === 'map'
+              ? 'border-brand text-brand'
+              : 'border-transparent text-zinc-500',
+          )}
+        >
+          <Map size={13} />
+          Map
+        </button>
+        <button
+          onClick={() => setMobileTab('list')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors',
+            mobileTab === 'list'
+              ? 'border-brand text-brand'
+              : 'border-transparent text-zinc-500',
+          )}
+        >
+          <List size={13} />
+          Locations {locations.length > 0 && `(${locations.length})`}
+        </button>
+      </div>
 
-        {/* ── Left: locations table ── */}
-        <div style={{ width: '420px', flexShrink: 0, borderRight: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', background: 'white' }}>
+      {/* ── Body ── */}
+      <div className="flex flex-1 min-h-0">
 
-          {/* Table header row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 72px', padding: '10px 16px', borderBottom: '1px solid #e4e4e7', background: '#fafafa' }}>
-            {['Name of Location', 'Coordinates', 'Actions'].map(h => (
-              <span key={h} style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#71717a', textAlign: h === 'Actions' ? 'center' : 'left' }}>
-                {h}
-              </span>
-            ))}
-          </div>
-
-          {/* Table body */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {isLoading ? (
-              <div style={{ padding: '48px', display: 'flex', justifyContent: 'center' }}>
-                <Loader2 size={20} className="animate-spin text-zinc-400" />
-              </div>
-            ) : locations.length === 0 ? (
-              <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-                <MapPin size={28} style={{ color: '#d4d4d8', margin: '0 auto 12px' }} />
-                <p style={{ fontSize: '13px', fontWeight: 600, color: '#71717a' }}>No locations yet</p>
-                <p style={{ fontSize: '12px', color: '#a1a1aa', marginTop: '4px' }}>Click "Add New Location" to get started</p>
-              </div>
-            ) : (
-              locations.map((loc, i) => (
-                <div
-                  key={loc.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 72px',
-                    padding: '11px 16px',
-                    borderBottom: '1px solid #f4f4f5',
-                    background: i % 2 === 0 ? 'white' : '#fafafa',
-                    alignItems: 'center',
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#fff7ed')}
-                  onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#fafafa')}
-                >
-                  {/* Name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, paddingRight: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#E8621A', flexShrink: 0 }} />
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#18181b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {loc.name}
-                    </span>
-                  </div>
-
-                  {/* Coordinates */}
-                  <div style={{ paddingRight: '8px' }}>
-                    <span style={{ fontSize: '11px', color: '#52525b', fontFamily: 'monospace' }}>
-                      {Number(loc.latitude).toFixed(4)}°
-                    </span>
-                    <br />
-                    <span style={{ fontSize: '11px', color: '#52525b', fontFamily: 'monospace' }}>
-                      {Number(loc.longitude).toFixed(4)}°
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                    <button
-                      onClick={() => setEditTarget(loc)}
-                      title="Edit"
-                      style={{ padding: '5px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f4f4f5')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                      <Pencil size={13} color="#71717a" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(loc)}
-                      title="Delete"
-                      style={{ padding: '5px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#fee2e2')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                      <Trash2 size={13} color="#f87171" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        {/* Locations table — full width on mobile (list tab), fixed 420px sidebar on desktop */}
+        <div className={cn(
+          'flex-col border-r border-zinc-200 bg-white',
+          'w-full md:w-[420px] md:shrink-0 md:flex',
+          mobileTab === 'list' ? 'flex' : 'hidden md:flex',
+        )}>
+          <LocationsTable
+            locations={locations}
+            isLoading={isLoading}
+            onEdit={loc => setEditTarget(loc)}
+            onDelete={handleDelete}
+          />
         </div>
 
-        {/* ── Right: plain Ghana map ── */}
-        <div style={{ flex: 1, position: 'relative' }}>
-          <GhanaMap locations={locations} />
+        {/* Map — full width on mobile (map tab), flexible on desktop */}
+        <div className={cn(
+          'relative',
+          'flex-1',
+          mobileTab === 'map' ? 'block' : 'hidden md:block',
+        )}>
+          <GhanaMap locations={locations} visible={mobileTab === 'map'} />
         </div>
+
       </div>
 
       {addOpen && (
