@@ -1,60 +1,85 @@
-import { useState } from 'react'
-import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import { MapPin, Plus, X, Loader2, Trash2 } from 'lucide-react'
-import { useColocationLocations, useAddLocation, useDeleteLocation } from '@/hooks/useColocation'
+import { useColocationLocations, useAddLocation, useDeleteLocation, type ColocationLocation } from '@/hooks/useColocation'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-// Ghana center and bounds
+// Ghana center
 const GHANA_CENTER: [number, number] = [7.9465, -1.0232]
 const GHANA_ZOOM = 7
 
-function makeIcon(name: string) {
+function makeIcon(name: string): L.DivIcon {
   return L.divIcon({
     className: '',
     iconAnchor: [8, 8],
-    html: `
-      <div style="position:relative;text-align:center;pointer-events:none;">
-        <div style="
-          width:16px;height:16px;
-          background:#E8621A;
-          border:2.5px solid white;
-          border-radius:50%;
-          box-shadow:0 2px 6px rgba(0,0,0,0.35);
-          margin:0 auto;
-        "></div>
-        <div style="
-          position:absolute;
-          top:20px;
-          left:50%;
-          transform:translateX(-50%);
-          white-space:nowrap;
-          font-size:11px;
-          font-weight:600;
-          color:#111827;
-          background:rgba(255,255,255,0.92);
-          padding:2px 6px;
-          border-radius:4px;
-          box-shadow:0 1px 4px rgba(0,0,0,0.18);
-        ">${name}</div>
-      </div>
-    `,
+    html: `<div style="position:relative;text-align:center;">
+      <div style="width:16px;height:16px;background:#E8621A;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35);margin:0 auto;"></div>
+      <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:#111827;background:rgba(255,255,255,0.92);padding:2px 6px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.18);">${name}</div>
+    </div>`,
   })
+}
+
+// ─── Ghana Map (plain Leaflet via useEffect) ───────────────────────────────────
+
+function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
+  const markersRef = useRef<L.Marker[]>([])
+
+  // Initialise map once
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    // Remove any stale Leaflet ID from React StrictMode double-mount
+    delete (el as unknown as Record<string, unknown>)['_leaflet_id']
+
+    const map = L.map(el, { center: GHANA_CENTER, zoom: GHANA_ZOOM })
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+    }).addTo(map)
+
+    mapRef.current = map
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+    }
+  }, [])
+
+  // Sync markers whenever locations change
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    markersRef.current.forEach(m => m.remove())
+    markersRef.current = []
+
+    locations.forEach(loc => {
+      const marker = L.marker([Number(loc.latitude), Number(loc.longitude)], {
+        icon: makeIcon(loc.name),
+      })
+      marker.bindTooltip(
+        `<strong>${loc.name}</strong><br/><span style="font-size:11px;color:#666">${Number(loc.latitude).toFixed(5)}, ${Number(loc.longitude).toFixed(5)}</span>`,
+        { direction: 'top', offset: [0, -20] },
+      )
+      marker.addTo(map)
+      markersRef.current.push(marker)
+    })
+  }, [locations])
+
+  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
 }
 
 // ─── Add Location Modal ────────────────────────────────────────────────────────
 
-interface AddModalProps {
-  open: boolean
-  onClose: () => void
-}
-
-function AddLocationModal({ open, onClose }: AddModalProps) {
+function AddLocationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = useState('')
   const [lat, setLat] = useState('')
   const [lng, setLng] = useState('')
@@ -65,11 +90,11 @@ function AddLocationModal({ open, onClose }: AddModalProps) {
     const latitude = parseFloat(lat)
     const longitude = parseFloat(lng)
     if (isNaN(latitude) || latitude < -90 || latitude > 90) {
-      toast.error('Latitude must be a number between -90 and 90')
+      toast.error('Latitude must be between -90 and 90')
       return
     }
     if (isNaN(longitude) || longitude < -180 || longitude > 180) {
-      toast.error('Longitude must be a number between -180 and 180')
+      toast.error('Longitude must be between -180 and 180')
       return
     }
     try {
@@ -94,7 +119,6 @@ function AddLocationModal({ open, onClose }: AddModalProps) {
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>
       <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
-        {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b">
           <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-orange-50">
             <MapPin size={14} className="text-brand" />
@@ -108,7 +132,6 @@ function AddLocationModal({ open, onClose }: AddModalProps) {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">Name of Location</label>
@@ -149,8 +172,8 @@ function AddLocationModal({ open, onClose }: AddModalProps) {
             </div>
           </div>
 
-          <p className="text-[0.7rem] text-zinc-400 -mt-1">
-            Ghana is roughly 4.5°–11.2° N, 3.3° W–1.2° E
+          <p className="text-[0.7rem] text-zinc-400">
+            Ghana: approx. 4.5°–11.2° N, 3.3° W–1.2° E
           </p>
 
           <Button type="submit" disabled={isPending} className="w-full gap-2">
@@ -181,9 +204,9 @@ export function Colocation() {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ height: 'calc(100vh - 52px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 52px)' }}>
       {/* Header */}
-      <div className="px-6 py-4 border-b bg-white shrink-0">
+      <div style={{ padding: '16px 24px', borderBottom: '1px solid #e4e4e7', background: 'white', flexShrink: 0 }}>
         <PageHeader
           title="Colocation"
           subtitle={`${locations.length} location${locations.length !== 1 ? 's' : ''} pinned`}
@@ -196,64 +219,54 @@ export function Colocation() {
         />
       </div>
 
-      {/* Map + sidebar layout */}
-      <div className="flex flex-1 min-h-0">
+      {/* Map + list layout */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* Map */}
-        <div className="flex-1 relative">
+        <div style={{ flex: 1, position: 'relative' }}>
           {isLoading ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-zinc-50">
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
               <Loader2 size={24} className="animate-spin text-zinc-400" />
             </div>
           ) : (
-            <MapContainer
-              center={GHANA_CENTER}
-              zoom={GHANA_ZOOM}
-              style={{ height: '100%', width: '100%' }}
-              scrollWheelZoom
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {locations.map(loc => (
-                <Marker
-                  key={loc.id}
-                  position={[loc.latitude, loc.longitude]}
-                  icon={makeIcon(loc.name)}
-                >
-                  <Tooltip direction="top" offset={[0, -20]} opacity={1}>
-                    <span className="text-xs font-medium">{loc.name}</span>
-                    <br />
-                    <span className="text-[0.65rem] text-zinc-500">{loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)}</span>
-                  </Tooltip>
-                </Marker>
-              ))}
-            </MapContainer>
+            <GhanaMap locations={locations} />
           )}
         </div>
 
         {/* Locations list panel */}
         {locations.length > 0 && (
-          <div className="w-64 border-l bg-white flex flex-col shrink-0">
-            <div className="px-4 py-3 border-b">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Pinned Locations</p>
+          <div style={{ width: '260px', borderLeft: '1px solid #e4e4e7', background: 'white', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e4e4e7' }}>
+              <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#71717a' }}>
+                Pinned Locations
+              </p>
             </div>
-            <div className="flex-1 overflow-y-auto divide-y">
+            <div style={{ flex: 1, overflowY: 'auto' }}>
               {locations.map(loc => (
-                <div key={loc.id} className="flex items-start gap-2.5 px-4 py-3 group hover:bg-zinc-50 transition-colors">
-                  <div className="mt-0.5 w-3 h-3 rounded-full bg-brand/80 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-zinc-800 truncate">{loc.name}</p>
-                    <p className="text-[0.65rem] text-zinc-400 font-mono mt-0.5">
+                <div
+                  key={loc.id}
+                  className="group"
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', borderBottom: '1px solid #f4f4f5' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                >
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#E8621A', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '12px', fontWeight: 600, color: '#18181b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {loc.name}
+                    </p>
+                    <p style={{ fontSize: '11px', color: '#a1a1aa', fontFamily: 'monospace', marginTop: '2px' }}>
                       {Number(loc.latitude).toFixed(5)}, {Number(loc.longitude).toFixed(5)}
                     </p>
                   </div>
                   <button
                     onClick={() => handleDelete(loc.id, loc.name)}
                     title="Remove location"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-50 shrink-0"
+                    style={{ opacity: 0, padding: '2px', borderRadius: '4px', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = '#fee2e2' }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.background = 'none' }}
+                    className="group-hover:!opacity-100"
                   >
-                    <Trash2 size={12} className="text-red-400" />
+                    <Trash2 size={12} color="#f87171" />
                   </button>
                 </div>
               ))}
