@@ -39,6 +39,22 @@ export function useAddLocation() {
   })
 }
 
+export function useUpdateLocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { id: string; name: string; latitude: number; longitude: number }) => {
+      const { error } = await supabase
+        .from('colocation_locations')
+        .update({ name: payload.name, latitude: payload.latitude, longitude: payload.longitude })
+        .eq('id', payload.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['colocation-locations'] })
+    },
+  })
+}
+
 export function useDeleteLocation() {
   const qc = useQueryClient()
   return useMutation({
