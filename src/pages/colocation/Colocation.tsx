@@ -12,28 +12,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-// Sources for Ghana ADM1 (16 regions) GeoJSON — all served with CORS headers.
-// github.com/raw/… and GADM both block cross-origin requests; jsDelivr and
-// raw.githubusercontent.com serve with Access-Control-Allow-Origin: *.
-const GHANA_REGION_SOURCES = [
-  // jsDelivr CDN (most reliable CORS, CDN-cached)
-  'https://cdn.jsdelivr.net/gh/wmgeolab/geoBoundaries@main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1_simplified.geojson',
-  'https://cdn.jsdelivr.net/gh/wmgeolab/geoBoundaries@main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson',
-  // GitHub raw fallback (also CORS-ok, slightly slower)
-  'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson',
-]
-
+// Fetch via our own Vercel Edge API route — server-side fetch has no CORS
+// restrictions, and the response is CDN-cached for 24 hours.
 async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
-  for (const url of GHANA_REGION_SOURCES) {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) continue
-      return await res.json() as GeoJSON.GeoJsonObject
-    } catch {
-      // try next source
-    }
-  }
-  throw new Error('All Ghana region sources failed')
+  const res = await fetch('/api/ghana-regions')
+  if (!res.ok) throw new Error(`ghana-regions API returned ${res.status}`)
+  return res.json() as Promise<GeoJSON.GeoJsonObject>
 }
 
 // ─── Marker icon (dot + name label combined) ──────────────────────────────────
