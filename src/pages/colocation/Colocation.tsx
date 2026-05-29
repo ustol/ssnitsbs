@@ -12,12 +12,39 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-// Ghana ADM1 (16 regions) from geoBoundaries — accurate subnational boundaries
-// Primary: simplified version (faster), fallback: full resolution
-const GHANA_REGIONS_URL =
-  'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1_simplified.geojson'
-const GHANA_REGIONS_URL_FULL =
-  'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson'
+// Ordered list of sources to try for Ghana ADM1 (16 regions) GeoJSON.
+// Each entry is either a direct GeoJSON URL, or an API URL whose response
+// contains a `gjDownloadURL` field pointing to the actual GeoJSON.
+const GHANA_REGION_SOURCES = [
+  // 1. geoBoundaries official API (returns {gjDownloadURL: "..."})
+  { type: 'api' as const, url: 'https://www.geoboundaries.org/api/current/gbOpen/GHA/ADM1/' },
+  // 2. GitHub raw — geoBoundaries main branch
+  { type: 'geojson' as const, url: 'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson' },
+  // 3. GADM v4.1
+  { type: 'geojson' as const, url: 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_GHA_1.json' },
+]
+
+async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
+  for (const src of GHANA_REGION_SOURCES) {
+    try {
+      const res = await fetch(src.url)
+      if (!res.ok) continue
+      const json = await res.json()
+      if (src.type === 'api') {
+        // API response contains gjDownloadURL pointing to the actual GeoJSON
+        const dlUrl = (json as { gjDownloadURL?: string }).gjDownloadURL
+        if (!dlUrl) continue
+        const dataRes = await fetch(dlUrl)
+        if (!dataRes.ok) continue
+        return await dataRes.json()
+      }
+      return json as GeoJSON.GeoJsonObject
+    } catch {
+      // try next source
+    }
+  }
+  throw new Error('All Ghana region sources failed')
+}
 
 // ─── Marker icon (dot + name label combined) ──────────────────────────────────
 
@@ -64,42 +91,24 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
     map.fitBounds(GHANA_BOUNDS, { padding: [20, 20] })
     mapRef.current = map
 
-    // Ghana region style
-    const regionStyle: L.PathOptions = {
-      fillColor: '#eee8dc',
-      fillOpacity: 1,
-      color: '#8fa3b0',   // inter-region borders
-      weight: 1,
-    }
-
-    function addRegions(data: GeoJSON.GeoJsonObject) {
-      if (!mapRef.current) return
-      L.geoJSON(data, {
-        style: regionStyle,
-        // Thicker outer country border by using an extra overlay layer
-        onEachFeature: (_feature, layer) => {
-          // no labels — only user-added markers should appear
-          void layer
-        },
-      }).addTo(map)
-    }
-
-    // Fetch the 16-region Ghana ADM1 boundary (try simplified first)
-    fetch(GHANA_REGIONS_URL)
-      .then(r => {
-        if (!r.ok) throw new Error('simplified not found')
-        return r.json()
+    // Load Ghana's 16 regions — try sources in order until one succeeds
+    let mounted = true
+    fetchGhanaRegions()
+      .then(data => {
+        if (!mounted || !mapRef.current) return
+        L.geoJSON(data, {
+          style: {
+            fillColor: '#eee8dc',
+            fillOpacity: 1,
+            color: '#8fa3b0',
+            weight: 1,
+          },
+        }).addTo(map)
       })
-      .then((data: GeoJSON.GeoJsonObject) => addRegions(data))
-      .catch(() =>
-        // Fallback to full-resolution version
-        fetch(GHANA_REGIONS_URL_FULL)
-          .then(r => r.json())
-          .then((data: GeoJSON.GeoJsonObject) => addRegions(data))
-          .catch(() => { /* silent — map works without outlines */ }),
-      )
+      .catch(() => { /* all sources failed — map still works with markers only */ })
 
     return () => {
+      mounted = false
       map.remove()
       mapRef.current = null
     }
