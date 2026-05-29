@@ -111,6 +111,9 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
   const [name, setName] = useState(existing?.name ?? '')
   const [lat, setLat] = useState(existing ? String(existing.latitude) : '')
   const [lng, setLng] = useState(existing ? String(existing.longitude) : '')
+  const [ssnitBranch, setSsnitBranch] = useState(existing?.ssnit_branch ?? '')
+  const [bank, setBank] = useState(existing?.bank ?? '')
+  const [commencementDate, setCommencementDate] = useState(existing?.commencement_date ?? '')
 
   const { mutateAsync: addLocation, isPending: isAdding } = useAddLocation()
   const { mutateAsync: updateLocation, isPending: isUpdating } = useUpdateLocation()
@@ -128,12 +131,17 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
       toast.error('Longitude must be between -180 and 180')
       return
     }
+    const extra = {
+      ssnit_branch: ssnitBranch.trim() || null,
+      bank: bank.trim() || null,
+      commencement_date: commencementDate || null,
+    }
     try {
       if (isEdit) {
-        await updateLocation({ id: existing.id, name: name.trim(), latitude, longitude })
+        await updateLocation({ id: existing.id, name: name.trim(), latitude, longitude, ...extra })
         toast.success(`"${name.trim()}" updated`)
       } else {
-        await addLocation({ name: name.trim(), latitude, longitude })
+        await addLocation({ name: name.trim(), latitude, longitude, ...extra })
         toast.success(`"${name.trim()}" added to map`)
       }
       onClose()
@@ -159,27 +167,66 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
             <X size={15} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-3.5">
+
+        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-3.5 overflow-y-auto max-h-[70vh]">
+          {/* Name */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">Name of Location</label>
+            <label className="text-xs font-medium text-zinc-700">Name of Location <span className="text-red-400">*</span></label>
             <Input
               value={name} onChange={e => setName(e.target.value)}
               placeholder="e.g. Accra Office" required className="h-9 text-sm" autoFocus
             />
           </div>
+
+          {/* GPS Coordinates */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-700">Latitude</label>
+              <label className="text-xs font-medium text-zinc-700">Latitude <span className="text-red-400">*</span></label>
               <Input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)}
                 placeholder="e.g. 5.6037" required className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-700">Longitude</label>
+              <label className="text-xs font-medium text-zinc-700">Longitude <span className="text-red-400">*</span></label>
               <Input type="number" step="any" value={lng} onChange={e => setLng(e.target.value)}
                 placeholder="e.g. -0.1870" required className="h-9 text-sm" />
             </div>
           </div>
-          <p className="text-[0.7rem] text-zinc-400">Ghana: 4.5°–11.2° N, 3.3° W–1.2° E</p>
+          <p className="text-[0.7rem] text-zinc-400 -mt-1">Ghana: 4.5°–11.2° N, 3.3° W–1.2° E</p>
+
+          {/* Divider */}
+          <div className="border-t border-dashed border-zinc-200 pt-1" />
+
+          {/* SSNIT Branch */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">SSNIT Branch</label>
+            <Input
+              value={ssnitBranch} onChange={e => setSsnitBranch(e.target.value)}
+              placeholder="e.g. Accra Central Branch"
+              className="h-9 text-sm"
+            />
+          </div>
+
+          {/* Bank */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Bank</label>
+            <Input
+              value={bank} onChange={e => setBank(e.target.value)}
+              placeholder="e.g. GCB Bank, Ecobank"
+              className="h-9 text-sm"
+            />
+          </div>
+
+          {/* Commencement Date */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Commencement Date</label>
+            <Input
+              type="date"
+              value={commencementDate}
+              onChange={e => setCommencementDate(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+
           <Button type="submit" disabled={isPending} className="w-full gap-2 h-9">
             {isPending ? <Loader2 size={14} className="animate-spin" /> : isEdit ? <Pencil size={14} /> : <Plus size={14} />}
             {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add to Map'}

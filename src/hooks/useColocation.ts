@@ -6,6 +6,9 @@ export interface ColocationLocation {
   name: string
   latitude: number
   longitude: number
+  ssnit_branch: string | null
+  bank: string | null
+  commencement_date: string | null
   created_at: string
 }
 
@@ -26,7 +29,10 @@ export function useColocationLocations() {
 export function useAddLocation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { name: string; latitude: number; longitude: number }) => {
+    mutationFn: async (payload: {
+      name: string; latitude: number; longitude: number
+      ssnit_branch?: string | null; bank?: string | null; commencement_date?: string | null
+    }) => {
       const { data: { user } } = await supabase.auth.getUser()
       const { error } = await supabase
         .from('colocation_locations')
@@ -42,11 +48,15 @@ export function useAddLocation() {
 export function useUpdateLocation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { id: string; name: string; latitude: number; longitude: number }) => {
+    mutationFn: async (payload: {
+      id: string; name: string; latitude: number; longitude: number
+      ssnit_branch?: string | null; bank?: string | null; commencement_date?: string | null
+    }) => {
+      const { id, ...fields } = payload
       const { error } = await supabase
         .from('colocation_locations')
-        .update({ name: payload.name, latitude: payload.latitude, longitude: payload.longitude })
-        .eq('id', payload.id)
+        .update(fields)
+        .eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
