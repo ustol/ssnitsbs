@@ -1,10 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import L from 'leaflet'
 import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
-
-// Leaflet is loaded from CDN in index.html — NOT bundled by Vite.
-// Declaring L as any avoids any npm reference that could re-introduce it.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const L: any
 import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,
@@ -22,42 +18,42 @@ async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
   return res.json() as Promise<GeoJSON.GeoJsonObject>
 }
 
-// ─── Marker icons ─────────────────────────────────────────────────────────────
+// ─── Marker icon ──────────────────────────────────────────────────────────────
 
-function makeIcon(name: string): L.DivIcon {
+function makeIcon(name: string, highlighted = false): L.DivIcon {
+  const size  = highlighted ? 22 : 16
+  const half  = size / 2
+  const color = highlighted ? '#c94e0a' : '#E8621A'
+  const ring  = highlighted
+    ? 'box-shadow:0 0 0 5px rgba(232,98,26,0.28),0 2px 10px rgba(0,0,0,0.45);'
+    : 'box-shadow:0 2px 8px rgba(0,0,0,0.4);'
+  const labelStyle = highlighted
+    ? 'font-size:12px;font-weight:700;background:rgba(255,255,255,0.97);padding:3px 8px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.2);'
+    : 'font-size:11px;font-weight:600;background:rgba(255,255,255,0.92);padding:2px 7px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.15);'
   return L.divIcon({
     className: '',
-    iconAnchor: [8, 8],
+    iconAnchor: [half, half],
     html: `<div style="position:relative;text-align:center;">
-      <div style="width:16px;height:16px;background:#E8621A;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);margin:0 auto;"></div>
-      <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:#111827;background:rgba(255,255,255,0.92);padding:2px 7px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.15);">${name}</div>
-    </div>`,
-  })
-}
-
-function makeHighlightedIcon(name: string): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    iconAnchor: [11, 11],
-    html: `<div style="position:relative;text-align:center;">
-      <div style="width:22px;height:22px;background:#E8621A;border:3px solid white;border-radius:50%;box-shadow:0 0 0 5px rgba(232,98,26,0.28),0 3px 10px rgba(0,0,0,0.45);margin:0 auto;"></div>
-      <div style="position:absolute;top:26px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#E8621A;background:rgba(255,255,255,0.97);padding:3px 8px;border-radius:5px;box-shadow:0 2px 6px rgba(0,0,0,0.18);border:1.5px solid rgba(232,98,26,0.3);">${name}</div>
+      <div style="width:${size}px;height:${size}px;background:${color};border:2.5px solid white;border-radius:50%;${ring};margin:0 auto;"></div>
+      <div style="position:absolute;top:${size + 4}px;left:50%;transform:translateX(-50%);white-space:nowrap;color:#111827;${labelStyle}">${name}</div>
     </div>`,
   })
 }
 
 // ─── Ghana map ────────────────────────────────────────────────────────────────
 
-function GhanaMap({ locations, visible, hoveredId }: {
+function GhanaMap({
+  locations, visible, hoveredId,
+}: {
   locations: ColocationLocation[]
   visible: boolean
   hoveredId: string | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
-  const markersRef = useRef<Map<string, { marker: L.Marker; name: string }>>(new Map())
+  // keyed by location id for O(1) lookup on hover
+  const markersRef = useRef<Map<string, L.Marker>>(new Map())
 
-  // Initialise map once
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -94,40 +90,38 @@ function GhanaMap({ locations, visible, hoveredId }: {
     }
   }, [])
 
-  // Re-validate size when map tab becomes visible on mobile
+  // Invalidate size when map becomes visible again (mobile tab switch)
   useEffect(() => {
     if (visible && mapRef.current) {
       setTimeout(() => mapRef.current?.invalidateSize(), 60)
     }
   }, [visible])
 
-  // Re-sync markers when locations change
+  // Sync markers whenever locations list changes
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    markersRef.current.forEach(({ marker }) => marker.remove())
+    markersRef.current.forEach(m => m.remove())
     markersRef.current.clear()
     locations.forEach(loc => {
       const marker = L.marker(
         [Number(loc.latitude), Number(loc.longitude)],
-        { icon: makeIcon(loc.name) },
+        { icon: makeIcon(loc.name, false) },
       ).addTo(map)
-      markersRef.current.set(loc.id, { marker, name: loc.name })
+      markersRef.current.set(loc.id, marker)
     })
   }, [locations])
 
-  // Highlight hovered marker — useLayoutEffect runs synchronously before paint
-  useLayoutEffect(() => {
-    markersRef.current.forEach(({ marker, name }, id) => {
-      if (id === hoveredId) {
-        marker.setIcon(makeHighlightedIcon(name))
-        marker.setZIndexOffset(1000)
-      } else {
-        marker.setIcon(makeIcon(name))
-        marker.setZIndexOffset(0)
-      }
+  // Highlight the hovered marker, reset all others
+  useEffect(() => {
+    markersRef.current.forEach((marker, id) => {
+      const loc = locations.find(l => l.id === id)
+      if (!loc) return
+      const isHovered = id === hoveredId
+      marker.setIcon(makeIcon(loc.name, isHovered))
+      marker.setZIndexOffset(isHovered ? 1000 : 0)
     })
-  }, [hoveredId])
+  }, [hoveredId, locations])
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
 }
@@ -312,7 +306,7 @@ function LocationsTable({
                 'grid items-center border-b border-zinc-100 transition-colors cursor-default',
                 hoveredId === loc.id
                   ? 'bg-orange-50 border-l-2 border-l-brand'
-                  : i % 2 === 0 ? 'bg-white hover:bg-orange-50/50' : 'bg-zinc-50/50 hover:bg-orange-50/50',
+                  : i % 2 === 0 ? 'bg-white hover:bg-orange-50/40' : 'bg-zinc-50/50 hover:bg-orange-50/40',
               )}
               style={{ gridTemplateColumns: '1fr 110px 72px' }}
             >
@@ -320,7 +314,7 @@ function LocationsTable({
               <div className="flex items-center gap-2 px-4 py-3 min-w-0">
                 <div className={cn(
                   'w-2 h-2 rounded-full shrink-0 transition-all',
-                  hoveredId === loc.id ? 'w-2.5 h-2.5 bg-brand shadow-sm' : 'bg-brand',
+                  hoveredId === loc.id ? 'w-2.5 h-2.5 bg-brand ring-2 ring-brand/30' : 'bg-brand',
                 )} />
                 <span className="text-xs font-semibold text-zinc-800 truncate">{loc.name}</span>
               </div>
@@ -371,7 +365,7 @@ export function Colocation() {
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ColocationLocation | null>(null)
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
-  const [hoveredLocId, setHoveredLocId] = useState<string | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}" from the map?`)) return
@@ -443,8 +437,8 @@ export function Colocation() {
             isLoading={isLoading}
             onEdit={loc => setEditTarget(loc)}
             onDelete={handleDelete}
-            onHover={setHoveredLocId}
-            hoveredId={hoveredLocId}
+            onHover={setHoveredId}
+            hoveredId={hoveredId}
           />
         </div>
 
@@ -454,7 +448,7 @@ export function Colocation() {
           'flex-1',
           mobileTab === 'map' ? 'block' : 'hidden md:block',
         )}>
-          <GhanaMap locations={locations} visible={mobileTab === 'map'} hoveredId={hoveredLocId} />
+          <GhanaMap locations={locations} visible={mobileTab === 'map'} hoveredId={hoveredId} />
         </div>
 
       </div>
