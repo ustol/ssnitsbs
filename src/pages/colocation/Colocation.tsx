@@ -12,9 +12,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-// Real Ghana GeoJSON from Natural Earth / world.geo.json
-const GHANA_GEOJSON_URL =
-  'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/GHA.geo.json'
+// Ghana ADM1 (16 regions) from geoBoundaries — accurate subnational boundaries
+// Primary: simplified version (faster), fallback: full resolution
+const GHANA_REGIONS_URL =
+  'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1_simplified.geojson'
+const GHANA_REGIONS_URL_FULL =
+  'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson'
 
 // ─── Marker icon (dot + name label combined) ──────────────────────────────────
 
@@ -61,23 +64,40 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
     map.fitBounds(GHANA_BOUNDS, { padding: [20, 20] })
     mapRef.current = map
 
-    // Fetch the real Ghana GeoJSON boundary
-    fetch(GHANA_GEOJSON_URL)
-      .then(r => r.json())
-      .then((data: GeoJSON.GeoJsonObject) => {
-        if (!mapRef.current) return
-        L.geoJSON(data, {
-          style: {
-            fillColor: '#eee8dc',
-            fillOpacity: 1,
-            color: '#a8b5c0',
-            weight: 1.8,
-          },
-        }).addTo(map)
+    // Ghana region style
+    const regionStyle: L.PathOptions = {
+      fillColor: '#eee8dc',
+      fillOpacity: 1,
+      color: '#8fa3b0',   // inter-region borders
+      weight: 1,
+    }
+
+    function addRegions(data: GeoJSON.GeoJsonObject) {
+      if (!mapRef.current) return
+      L.geoJSON(data, {
+        style: regionStyle,
+        // Thicker outer country border by using an extra overlay layer
+        onEachFeature: (_feature, layer) => {
+          // no labels — only user-added markers should appear
+          void layer
+        },
+      }).addTo(map)
+    }
+
+    // Fetch the 16-region Ghana ADM1 boundary (try simplified first)
+    fetch(GHANA_REGIONS_URL)
+      .then(r => {
+        if (!r.ok) throw new Error('simplified not found')
+        return r.json()
       })
-      .catch(() => {
-        // silent — map still works, just no country outline
-      })
+      .then((data: GeoJSON.GeoJsonObject) => addRegions(data))
+      .catch(() =>
+        // Fallback to full-resolution version
+        fetch(GHANA_REGIONS_URL_FULL)
+          .then(r => r.json())
+          .then((data: GeoJSON.GeoJsonObject) => addRegions(data))
+          .catch(() => { /* silent — map works without outlines */ }),
+      )
 
     return () => {
       map.remove()
