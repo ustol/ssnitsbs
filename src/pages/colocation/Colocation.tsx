@@ -112,7 +112,6 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
   const [lat, setLat] = useState(existing ? String(existing.latitude) : '')
   const [lng, setLng] = useState(existing ? String(existing.longitude) : '')
   const [ssnitBranch, setSsnitBranch] = useState(existing?.ssnit_branch ?? '')
-  const [bank, setBank] = useState(existing?.bank ?? '')
   const [commencementDate, setCommencementDate] = useState(existing?.commencement_date ?? '')
 
   const { mutateAsync: addLocation, isPending: isAdding } = useAddLocation()
@@ -133,7 +132,6 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
     }
     const extra = {
       ssnit_branch: ssnitBranch.trim() || null,
-      bank: bank.trim() || null,
       commencement_date: commencementDate || null,
     }
     try {
@@ -206,23 +204,16 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
             />
           </div>
 
-          {/* Bank */}
+          {/* Commencement Date — required */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">Bank</label>
-            <Input
-              value={bank} onChange={e => setBank(e.target.value)}
-              placeholder="e.g. GCB Bank, Ecobank"
-              className="h-9 text-sm"
-            />
-          </div>
-
-          {/* Commencement Date */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">Commencement Date</label>
+            <label className="text-xs font-medium text-zinc-700">
+              Commencement Date <span className="text-red-400">*</span>
+            </label>
             <Input
               type="date"
               value={commencementDate}
               onChange={e => setCommencementDate(e.target.value)}
+              required
               className="h-9 text-sm"
             />
           </div>
