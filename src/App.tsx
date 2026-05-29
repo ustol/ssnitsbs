@@ -34,6 +34,8 @@ import { StatusTracker } from '@/pages/status/StatusTracker'
 import { PerformanceTracker } from '@/pages/partnerships/PerformanceTracker'
 import { AuditLog } from '@/pages/audit/AuditLog'
 import { DataWarehouse } from '@/pages/datawarehouse/DataWarehouse'
+import { Colocation } from '@/pages/colocation/Colocation'
+import { VirtualBranch } from '@/pages/virtualbranch/VirtualBranch'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -98,6 +100,10 @@ export default function App() {
           <Route path="reports/status-time" element={<StatusTimeReport />} />
           {/* Data Warehouse */}
           <Route path="data-warehouse" element={<DataWarehouse />} />
+          {/* Colocation */}
+          <Route path="colocation" element={<Colocation />} />
+          {/* Virtual Branch */}
+          <Route path="virtual-branch" element={<VirtualBranch />} />
           {/* Audit Trail */}
           <Route path="audit" element={<AuditLog />} />
           {/* Settings */}
