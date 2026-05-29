@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map as MapIcon, List } from 'lucide-react'
+import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
 import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,
@@ -20,39 +20,23 @@ async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
 
 // ─── Marker icon ──────────────────────────────────────────────────────────────
 
-function makeIcon(name: string, highlighted = false): L.DivIcon {
-  const size  = highlighted ? 22 : 16
-  const half  = size / 2
-  const color = highlighted ? '#c94e0a' : '#E8621A'
-  const ring  = highlighted
-    ? 'box-shadow:0 0 0 5px rgba(232,98,26,0.28),0 2px 10px rgba(0,0,0,0.45);'
-    : 'box-shadow:0 2px 8px rgba(0,0,0,0.4);'
-  const labelStyle = highlighted
-    ? 'font-size:12px;font-weight:700;background:rgba(255,255,255,0.97);padding:3px 8px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.2);'
-    : 'font-size:11px;font-weight:600;background:rgba(255,255,255,0.92);padding:2px 7px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.15);'
+function makeIcon(name: string): L.DivIcon {
   return L.divIcon({
     className: '',
-    iconAnchor: [half, half],
+    iconAnchor: [8, 8],
     html: `<div style="position:relative;text-align:center;">
-      <div style="width:${size}px;height:${size}px;background:${color};border:2.5px solid white;border-radius:50%;${ring};margin:0 auto;"></div>
-      <div style="position:absolute;top:${size + 4}px;left:50%;transform:translateX(-50%);white-space:nowrap;color:#111827;${labelStyle}">${name}</div>
+      <div style="width:16px;height:16px;background:#E8621A;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);margin:0 auto;"></div>
+      <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:#111827;background:rgba(255,255,255,0.92);padding:2px 7px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.15);">${name}</div>
     </div>`,
   })
 }
 
 // ─── Ghana map ────────────────────────────────────────────────────────────────
 
-function GhanaMap({
-  locations, visible, hoveredId,
-}: {
-  locations: ColocationLocation[]
-  visible: boolean
-  hoveredId: string | null
-}) {
+function GhanaMap({ locations, visible }: { locations: ColocationLocation[]; visible: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
-  // keyed by location id for O(1) lookup on hover
-  const markersRef = useRef<Map<string, L.Marker>>(new Map())
+  const markersRef = useRef<L.Marker[]>([])
 
   useEffect(() => {
     const el = containerRef.current
@@ -97,31 +81,19 @@ function GhanaMap({
     }
   }, [visible])
 
-  // Sync markers whenever locations list changes
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     markersRef.current.forEach(m => m.remove())
-    markersRef.current.clear()
+    markersRef.current = []
     locations.forEach(loc => {
       const marker = L.marker(
         [Number(loc.latitude), Number(loc.longitude)],
-        { icon: makeIcon(loc.name, false) },
+        { icon: makeIcon(loc.name) },
       ).addTo(map)
-      markersRef.current.set(loc.id, marker)
+      markersRef.current.push(marker)
     })
   }, [locations])
-
-  // Highlight the hovered marker, reset all others
-  useEffect(() => {
-    markersRef.current.forEach((marker, id) => {
-      const loc = locations.find(l => l.id === id)
-      if (!loc) return
-      const isHovered = id === hoveredId
-      marker.setIcon(makeIcon(loc.name, isHovered))
-      marker.setZIndexOffset(isHovered ? 1000 : 0)
-    })
-  }, [hoveredId, locations])
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
 }
@@ -136,11 +108,12 @@ interface LocationModalProps {
 
 function LocationModal({ open, onClose, existing }: LocationModalProps) {
   const isEdit = !!existing
-  const [name, setName] = useState(existing?.name ?? '')
-  const [lat, setLat] = useState(existing ? String(existing.latitude) : '')
-  const [lng, setLng] = useState(existing ? String(existing.longitude) : '')
-  const [ssnitBranch, setSsnitBranch] = useState(existing?.ssnit_branch ?? '')
-  const [commencementDate, setCommencementDate] = useState(existing?.commencement_date ?? '')
+  const [name, setName]   = useState(existing?.name ?? '')
+  const [branch, setBranch] = useState(existing?.ssnit_branch ?? '')
+  const [bank, setBank]   = useState(existing?.bank ?? '')
+  const [date, setDate]   = useState(existing?.commencement_date ?? '')
+  const [lat, setLat]     = useState(existing ? String(existing.latitude) : '')
+  const [lng, setLng]     = useState(existing ? String(existing.longitude) : '')
 
   const { mutateAsync: addLocation, isPending: isAdding } = useAddLocation()
   const { mutateAsync: updateLocation, isPending: isUpdating } = useUpdateLocation()
@@ -158,16 +131,20 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
       toast.error('Longitude must be between -180 and 180')
       return
     }
-    const extra = {
-      ssnit_branch: ssnitBranch.trim() || null,
-      commencement_date: commencementDate || null,
+    const payload = {
+      name: name.trim(),
+      latitude,
+      longitude,
+      ssnit_branch: branch.trim() || null,
+      bank: bank.trim() || null,
+      commencement_date: date || null,
     }
     try {
       if (isEdit) {
-        await updateLocation({ id: existing.id, name: name.trim(), latitude, longitude, ...extra })
+        await updateLocation({ id: existing.id, ...payload })
         toast.success(`"${name.trim()}" updated`)
       } else {
-        await addLocation({ name: name.trim(), latitude, longitude, ...extra })
+        await addLocation(payload)
         toast.success(`"${name.trim()}" added to map`)
       }
       onClose()
@@ -178,8 +155,9 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm p-0 gap-0 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b shrink-0">
           <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-orange-50">
             <MapPin size={14} className="text-brand" />
           </div>
@@ -194,59 +172,51 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-3.5 overflow-y-auto max-h-[70vh]">
-          {/* Name */}
+        {/* Scrollable form body */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-4 py-4 space-y-3.5">
+
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">Name of Location <span className="text-red-400">*</span></label>
-            <Input
-              value={name} onChange={e => setName(e.target.value)}
-              placeholder="e.g. Accra Office" required className="h-9 text-sm" autoFocus
-            />
+            <Input value={name} onChange={e => setName(e.target.value)}
+              placeholder="e.g. Accra Main Branch" required className="h-9 text-sm" autoFocus />
           </div>
 
-          {/* GPS Coordinates */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-700">Latitude <span className="text-red-400">*</span></label>
-              <Input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)}
-                placeholder="e.g. 5.6037" required className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-700">Longitude <span className="text-red-400">*</span></label>
-              <Input type="number" step="any" value={lng} onChange={e => setLng(e.target.value)}
-                placeholder="e.g. -0.1870" required className="h-9 text-sm" />
-            </div>
-          </div>
-          <p className="text-[0.7rem] text-zinc-400 -mt-1">Ghana: 4.5°–11.2° N, 3.3° W–1.2° E</p>
-
-          {/* Divider */}
-          <div className="border-t border-dashed border-zinc-200 pt-1" />
-
-          {/* SSNIT Branch */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">SSNIT Branch</label>
-            <Input
-              value={ssnitBranch} onChange={e => setSsnitBranch(e.target.value)}
-              placeholder="e.g. Accra Central Branch"
-              className="h-9 text-sm"
-            />
+            <Input value={branch} onChange={e => setBranch(e.target.value)}
+              placeholder="e.g. Greater Accra Regional Office" className="h-9 text-sm" />
           </div>
 
-          {/* Commencement Date — required */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">
-              Commencement Date <span className="text-red-400">*</span>
-            </label>
-            <Input
-              type="date"
-              value={commencementDate}
-              onChange={e => setCommencementDate(e.target.value)}
-              required
-              className="h-9 text-sm"
-            />
+            <label className="text-xs font-medium text-zinc-700">Bank</label>
+            <Input value={bank} onChange={e => setBank(e.target.value)}
+              placeholder="e.g. GCB Bank, Ecobank" className="h-9 text-sm" />
           </div>
 
-          <Button type="submit" disabled={isPending} className="w-full gap-2 h-9">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Commencement Date</label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="h-9 text-sm" />
+          </div>
+
+          <div className="pt-1">
+            <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-2">GPS Coordinates</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-700">Latitude <span className="text-red-400">*</span></label>
+                <Input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)}
+                  placeholder="e.g. 5.6037" required className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-700">Longitude <span className="text-red-400">*</span></label>
+                <Input type="number" step="any" value={lng} onChange={e => setLng(e.target.value)}
+                  placeholder="e.g. -0.1870" required className="h-9 text-sm" />
+              </div>
+            </div>
+            <p className="text-[0.7rem] text-zinc-400 mt-1.5">Ghana: 4.5°–11.2° N, 3.3° W–1.2° E</p>
+          </div>
+
+          <Button type="submit" disabled={isPending} className="w-full gap-2 h-9 sticky bottom-0">
             {isPending ? <Loader2 size={14} className="animate-spin" /> : isEdit ? <Pencil size={14} /> : <Plus size={14} />}
             {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add to Map'}
           </Button>
@@ -258,34 +228,36 @@ function LocationModal({ open, onClose, existing }: LocationModalProps) {
 
 // ─── Locations table ──────────────────────────────────────────────────────────
 
+const TABLE_COLS = '180px 140px 130px 110px 72px'
+
 function LocationsTable({
-  locations, isLoading,
-  onEdit, onDelete, onHover, hoveredId,
+  locations, isLoading, onEdit, onDelete,
 }: {
   locations: ColocationLocation[]
   isLoading: boolean
   onEdit: (loc: ColocationLocation) => void
   onDelete: (loc: ColocationLocation) => void
-  onHover: (id: string | null) => void
-  hoveredId: string | null
 }) {
+  const headers = ['Name of Location', 'SSNIT Branch', 'Bank', 'Coordinates', 'Actions']
+
   return (
     <div className="flex flex-col h-full">
-      {/* Column headers */}
-      <div className="grid border-b bg-zinc-50 shrink-0"
-        style={{ gridTemplateColumns: '1fr 110px 72px' }}>
-        {['Name of Location', 'Coordinates', 'Actions'].map(h => (
-          <span key={h} className={cn(
-            'px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500',
-            h === 'Actions' && 'text-center',
-          )}>
-            {h}
-          </span>
-        ))}
-      </div>
+      {/* Horizontally scrollable wrapper */}
+      <div className="flex-1 overflow-auto">
+        {/* Header — sticky at top */}
+        <div className="grid sticky top-0 z-10 bg-zinc-50 border-b shrink-0 min-w-max"
+          style={{ gridTemplateColumns: TABLE_COLS }}>
+          {headers.map(h => (
+            <span key={h} className={cn(
+              'px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 whitespace-nowrap',
+              h === 'Actions' && 'text-center',
+            )}>
+              {h}
+            </span>
+          ))}
+        </div>
 
-      {/* Rows */}
-      <div className="flex-1 overflow-y-auto">
+        {/* Body */}
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 size={20} className="animate-spin text-zinc-400" />
@@ -300,49 +272,51 @@ function LocationsTable({
           locations.map((loc, i) => (
             <div
               key={loc.id}
-              onMouseEnter={() => onHover(loc.id)}
-              onMouseLeave={() => onHover(null)}
               className={cn(
-                'grid items-center border-b border-zinc-100 transition-colors cursor-default',
-                hoveredId === loc.id
-                  ? 'bg-orange-50 border-l-2 border-l-brand'
-                  : i % 2 === 0 ? 'bg-white hover:bg-orange-50/40' : 'bg-zinc-50/50 hover:bg-orange-50/40',
+                'grid items-center border-b border-zinc-100 transition-colors min-w-max',
+                'hover:bg-orange-50/50 active:bg-orange-50',
+                i % 2 === 0 ? 'bg-white' : 'bg-zinc-50/40',
               )}
-              style={{ gridTemplateColumns: '1fr 110px 72px' }}
+              style={{ gridTemplateColumns: TABLE_COLS }}
             >
               {/* Name */}
               <div className="flex items-center gap-2 px-4 py-3 min-w-0">
-                <div className={cn(
-                  'w-2 h-2 rounded-full shrink-0 transition-all',
-                  hoveredId === loc.id ? 'w-2.5 h-2.5 bg-brand ring-2 ring-brand/30' : 'bg-brand',
-                )} />
+                <div className="w-2 h-2 rounded-full bg-brand shrink-0" />
                 <span className="text-xs font-semibold text-zinc-800 truncate">{loc.name}</span>
               </div>
 
+              {/* SSNIT Branch */}
+              <div className="px-4 py-3">
+                <span className="text-xs text-zinc-600 truncate block">
+                  {loc.ssnit_branch ?? <span className="text-zinc-300">—</span>}
+                </span>
+              </div>
+
+              {/* Bank */}
+              <div className="px-4 py-3">
+                <span className="text-xs text-zinc-600 truncate block">
+                  {loc.bank ?? <span className="text-zinc-300">—</span>}
+                </span>
+              </div>
+
               {/* Coordinates */}
-              <div className="px-2 py-3">
-                <p className="text-[11px] text-zinc-500 font-mono leading-tight">
+              <div className="px-4 py-3">
+                <p className="text-[11px] text-zinc-500 font-mono leading-tight whitespace-nowrap">
                   {Number(loc.latitude).toFixed(4)}°
                 </p>
-                <p className="text-[11px] text-zinc-500 font-mono leading-tight">
+                <p className="text-[11px] text-zinc-500 font-mono leading-tight whitespace-nowrap">
                   {Number(loc.longitude).toFixed(4)}°
                 </p>
               </div>
 
-              {/* Actions — always visible (touch-friendly) */}
+              {/* Actions */}
               <div className="flex items-center justify-center gap-1 px-2 py-3">
-                <button
-                  onClick={() => onEdit(loc)}
-                  className="p-1.5 rounded-md hover:bg-zinc-100 active:bg-zinc-200 transition-colors"
-                  title="Edit"
-                >
+                <button onClick={() => onEdit(loc)}
+                  className="p-1.5 rounded-md hover:bg-zinc-100 active:bg-zinc-200 transition-colors" title="Edit">
                   <Pencil size={13} className="text-zinc-500" />
                 </button>
-                <button
-                  onClick={() => onDelete(loc)}
-                  className="p-1.5 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors"
-                  title="Delete"
-                >
+                <button onClick={() => onDelete(loc)}
+                  className="p-1.5 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors" title="Delete">
                   <Trash2 size={13} className="text-red-400" />
                 </button>
               </div>
@@ -365,7 +339,6 @@ export function Colocation() {
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ColocationLocation | null>(null)
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}" from the map?`)) return
@@ -406,7 +379,7 @@ export function Colocation() {
               : 'border-transparent text-zinc-500',
           )}
         >
-          <MapIcon size={13} />
+          <Map size={13} />
           Map
         </button>
         <button
@@ -437,8 +410,6 @@ export function Colocation() {
             isLoading={isLoading}
             onEdit={loc => setEditTarget(loc)}
             onDelete={handleDelete}
-            onHover={setHoveredId}
-            hoveredId={hoveredId}
           />
         </div>
 
@@ -448,7 +419,7 @@ export function Colocation() {
           'flex-1',
           mobileTab === 'map' ? 'block' : 'hidden md:block',
         )}>
-          <GhanaMap locations={locations} visible={mobileTab === 'map'} hoveredId={hoveredId} />
+          <GhanaMap locations={locations} visible={mobileTab === 'map'} />
         </div>
 
       </div>
