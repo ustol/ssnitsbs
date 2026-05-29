@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MapPin, Plus, X, Loader2, Pencil, Trash2, Map, List } from 'lucide-react'
 
-// Leaflet is loaded via CDN in index.html (avoids Vite bundler conflicts).
-// @types/leaflet provides TypeScript types; the runtime comes from window.L.
-declare const L: typeof import('leaflet')
+// Leaflet is loaded from CDN in index.html — NOT bundled by Vite.
+// Declaring L as any avoids any npm reference that could re-introduce it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const L: any
 import {
   useColocationLocations, useAddLocation, useUpdateLocation, useDeleteLocation,
   type ColocationLocation,
