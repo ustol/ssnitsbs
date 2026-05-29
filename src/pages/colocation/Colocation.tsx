@@ -12,33 +12,23 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-// Ordered list of sources to try for Ghana ADM1 (16 regions) GeoJSON.
-// Each entry is either a direct GeoJSON URL, or an API URL whose response
-// contains a `gjDownloadURL` field pointing to the actual GeoJSON.
+// Sources for Ghana ADM1 (16 regions) GeoJSON — all served with CORS headers.
+// github.com/raw/… and GADM both block cross-origin requests; jsDelivr and
+// raw.githubusercontent.com serve with Access-Control-Allow-Origin: *.
 const GHANA_REGION_SOURCES = [
-  // 1. geoBoundaries official API (returns {gjDownloadURL: "..."})
-  { type: 'api' as const, url: 'https://www.geoboundaries.org/api/current/gbOpen/GHA/ADM1/' },
-  // 2. GitHub raw — geoBoundaries main branch
-  { type: 'geojson' as const, url: 'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson' },
-  // 3. GADM v4.1
-  { type: 'geojson' as const, url: 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_GHA_1.json' },
+  // jsDelivr CDN (most reliable CORS, CDN-cached)
+  'https://cdn.jsdelivr.net/gh/wmgeolab/geoBoundaries@main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1_simplified.geojson',
+  'https://cdn.jsdelivr.net/gh/wmgeolab/geoBoundaries@main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson',
+  // GitHub raw fallback (also CORS-ok, slightly slower)
+  'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/GHA/ADM1/geoBoundaries-GHA-ADM1.geojson',
 ]
 
 async function fetchGhanaRegions(): Promise<GeoJSON.GeoJsonObject> {
-  for (const src of GHANA_REGION_SOURCES) {
+  for (const url of GHANA_REGION_SOURCES) {
     try {
-      const res = await fetch(src.url)
+      const res = await fetch(url)
       if (!res.ok) continue
-      const json = await res.json()
-      if (src.type === 'api') {
-        // API response contains gjDownloadURL pointing to the actual GeoJSON
-        const dlUrl = (json as { gjDownloadURL?: string }).gjDownloadURL
-        if (!dlUrl) continue
-        const dataRes = await fetch(dlUrl)
-        if (!dataRes.ok) continue
-        return await dataRes.json()
-      }
-      return json as GeoJSON.GeoJsonObject
+      return await res.json() as GeoJSON.GeoJsonObject
     } catch {
       // try next source
     }
