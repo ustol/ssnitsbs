@@ -30,12 +30,14 @@ export interface BigPushActivity {
   created_at: string
 }
 
+export type ActivityEntry = { id: string; value: number; date: string; notes: string | null }
+
 export interface ActivitySummary {
   project_id: string
-  registration: { value: number; date: string } | null
-  validation: { value: number; date: string } | null
-  payment: { value: number; date: string } | null
-  inspection: { value: number; date: string } | null
+  registration: ActivityEntry | null
+  validation: ActivityEntry | null
+  payment: ActivityEntry | null
+  inspection: ActivityEntry | null
 }
 
 // ─── Projects query ────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ export function useProjectActivities() {
   return useQuery({ queryKey: ['big-push-activities'], queryFn: fetchActivities })
 }
 
-// Build a lookup map: projectId → { registration, validation, payment } (latest each)
+// Build a lookup map: projectId → { registration, validation, payment, inspection } (latest each)
 export function buildActivitySummaries(
   activities: BigPushActivity[],
 ): Record<string, ActivitySummary> {
@@ -81,7 +83,7 @@ export function buildActivitySummaries(
     const entry = map[a.project_id]
     const key = a.activity_type as ActivityType
     if (!entry[key]) {
-      entry[key] = { value: Number(a.value), date: a.activity_date }
+      entry[key] = { id: a.id, value: Number(a.value), date: a.activity_date, notes: a.notes }
     }
   }
   return map
@@ -105,6 +107,49 @@ export function useLogActivity() {
       const { error } = await supabase
         .from('big_push_activities')
         .insert({ ...payload, created_by: user?.id ?? null })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['big-push-activities'] })
+    },
+  })
+}
+
+// ─── Update activity mutation ──────────────────────────────────────────────────
+
+export interface UpdateActivityPayload {
+  id: string
+  value: number
+  activity_date: string
+  notes?: string | null
+}
+
+export function useUpdateActivity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, value, activity_date, notes }: UpdateActivityPayload) => {
+      const { error } = await supabase
+        .from('big_push_activities')
+        .update({ value, activity_date, notes: notes ?? null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['big-push-activities'] })
+    },
+  })
+}
+
+// ─── Delete activity mutation ──────────────────────────────────────────────────
+
+export function useDeleteActivity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('big_push_activities')
+        .delete()
+        .eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
