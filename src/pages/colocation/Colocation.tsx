@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import L from 'leaflet'
+// L is the Leaflet global loaded from CDN in index.html (see src/types/leaflet.d.ts)
 import { Plus, X, Loader2, MapPin, Pencil, Trash2, Map, List } from 'lucide-react'
 import {
   useColocationLocations,
