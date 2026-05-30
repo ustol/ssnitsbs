@@ -13,6 +13,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Leaflet must load before the app so window.L is available -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
