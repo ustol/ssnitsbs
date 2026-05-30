@@ -68,24 +68,28 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
     Object.values(markersRef.current).forEach((m: any) => m.remove())
     markersRef.current = {}
 
+    const pinIcon = L.divIcon({
+      className: '',
+      iconSize: [28, 36],
+      iconAnchor: [14, 36],
+      tooltipAnchor: [0, -38],
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+        <path d="M14 0C8.477 0 4 4.477 4 10c0 7.5 10 26 10 26S24 17.5 24 10C24 4.477 19.523 0 14 0z" fill="#E8621A" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="14" cy="10" r="4" fill="#fff"/>
+      </svg>`,
+    })
+
     locations.forEach(loc => {
       const lat = Number(loc.latitude)
       const lng = Number(loc.longitude)
       if (isNaN(lat) || isNaN(lng)) return
 
-      const marker = L.circleMarker([lat, lng], {
-        radius: 8,
-        fillColor: '#E8621A',
-        color: '#fff',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 1,
-      })
+      const marker = L.marker([lat, lng], { icon: pinIcon })
 
       marker.bindTooltip(
         `<strong>${loc.name}</strong>`
         + (loc.ssnit_branch ? `<br/><span style="font-size:11px;color:#555">${loc.ssnit_branch}</span>` : ''),
-        { direction: 'top', offset: [0, -10], opacity: 0.95 },
+        { direction: 'top', offset: [0, -4], opacity: 0.95 },
       )
       marker.addTo(map)
       markersRef.current[loc.id] = marker
