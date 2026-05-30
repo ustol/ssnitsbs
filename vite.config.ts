@@ -9,5 +9,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // Leaflet is loaded via CDN in index.html — no optimizeDeps needed
+  // Leaflet is loaded from CDN in index.html to avoid Rolldown CJS resolution issues.
+  // Mark it as external so the bundler emits `L` references instead of trying to bundle it.
+  build: {
+    rollupOptions: {
+      external: ['leaflet'],
+      output: {
+        globals: { leaflet: 'L' },
+      },
+    },
+  },
 })
