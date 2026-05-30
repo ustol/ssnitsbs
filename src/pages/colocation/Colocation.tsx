@@ -96,7 +96,7 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
     })
   }, [locations])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 }
 
 // ─── Location Modal ───────────────────────────────────────────────────────────
@@ -257,15 +257,16 @@ export function Colocation() {
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 110px)', borderRadius: 12, overflow: 'hidden', border: '1px solid #e4e4e7' }}>
+    <div className="flex flex-col md:flex-row rounded-xl overflow-hidden border border-zinc-200"
+      style={{ height: 'calc(100vh - 100px)' }}>
 
-      {/* ── Left: Ghana Map ── */}
-      <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+      {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
+      <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
         <GhanaMap locations={locations} />
       </div>
 
-      {/* ── Right: Table panel ── */}
-      <div style={{ width: '45%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #e4e4e7', background: '#fff', minWidth: 0 }}>
+      {/* ── Table panel: top on mobile (order-1), right on desktop (order-2) ── */}
+      <div className="order-1 md:order-2 flex flex-col min-w-0 bg-white flex-1 md:flex-none md:w-[45%] border-b border-zinc-200 md:border-b-0 md:border-l">
 
         {/* Panel header */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: '#fff' }}>
