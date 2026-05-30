@@ -166,7 +166,8 @@ function GhanaMap({ locations, hoveredId, onHover, visible }: GhanaMapProps) {
     }
   }, [visible])
 
-  return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+  // position:absolute inset:0 is the only reliable way to fill a flex parent
+  return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 }
 
 // ─── Add / Edit modal ─────────────────────────────────────────────────────────
@@ -358,15 +359,18 @@ export function Colocation() {
         ))}
       </div>
 
-      {/* ── Body ── */}
-      <div className="flex flex-1 min-h-0">
+      {/* ── Body ── flex row, takes remaining height */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
-        {/* Left: table panel */}
-        <div className={cn(
-          'flex-col border-r border-zinc-200 bg-white overflow-hidden',
-          'w-full md:w-[420px] md:shrink-0 md:flex',
-          mobileTab === 'list' ? 'flex' : 'hidden md:flex',
-        )}>
+        {/* Left: table panel — full width on mobile, 420 px sidebar on desktop */}
+        <div
+          className={cn(
+            'border-r border-zinc-200 bg-white overflow-hidden',
+            'w-full md:w-[420px] md:flex-none',
+            mobileTab === 'list' ? 'flex' : 'hidden md:flex',
+          )}
+          style={{ flexDirection: 'column' }}
+        >
           {/* Table column headers */}
           <div className="grid shrink-0 bg-zinc-50 border-b" style={{ gridTemplateColumns: '1fr 1fr 72px' }}>
             {['Name of Location', 'SSNIT Branch / Date', 'Actions'].map(h => (
@@ -467,11 +471,13 @@ export function Colocation() {
           )}
         </div>
 
-        {/* Right: Ghana map */}
-        <div className={cn(
-          'flex-1 relative',
-          mobileTab === 'map' ? 'block' : 'hidden md:block',
-        )}>
+        {/* Right: Ghana map — position:relative so the absolute map div fills it */}
+        <div
+          className={cn(
+            mobileTab === 'map' ? 'block' : 'hidden md:block',
+          )}
+          style={{ flex: 1, position: 'relative', minWidth: 0 }}
+        >
           <GhanaMap
             locations={locations}
             hoveredId={hoveredId}
