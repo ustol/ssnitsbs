@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react'
-import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, X, Loader2, ClipboardCheck, Pencil, Trash2 } from 'lucide-react'
+import { useMemo, useState, useRef, useEffect } from 'react'
+import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, X, Loader2, ClipboardCheck, Pencil, Trash2, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import {
   useDataWarehouse, useProjectActivities, buildActivitySummaries,
   useLogActivity, useUpdateActivity, useDeleteActivity,
@@ -349,6 +352,167 @@ function InspectionCell({ projectId, summaries, onEdit, onDelete }: {
   )
 }
 
+// ─── Download columns definition ─────────────────────────────────────────────
+
+const DOWNLOAD_COLUMNS = [
+  { key: 'title',               label: 'Project' },
+  { key: 'contractor',          label: 'Contractor' },
+  { key: 'contract_sum',        label: 'Contract Sum' },
+  { key: 'start_date',          label: 'Start Date' },
+  { key: 'exp_completion_date', label: 'Exp. Completion Date' },
+  { key: 'current_progress',    label: 'Progress' },
+  { key: 'agency',              label: 'Agency' },
+  { key: 'region',              label: 'Region' },
+] as const
+
+type DownloadColKey = typeof DOWNLOAD_COLUMNS[number]['key']
+type DownloadFormat = 'excel' | 'pdf'
+
+// ─── Export helpers ───────────────────────────────────────────────────────────
+
+function getRowValues(p: BigPushProject, cols: DownloadColKey[]): string[] {
+  return cols.map(k => (p as unknown as Record<string, string | null>)[k] ?? '—')
+}
+
+function exportToExcel(rows: BigPushProject[], cols: DownloadColKey[]) {
+  const headers = cols.map(k => DOWNLOAD_COLUMNS.find(c => c.key === k)!.label)
+  const data = rows.map(p => getRowValues(p, cols))
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+
+  // Column widths
+  ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 18) }))
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Big Push Projects')
+  XLSX.writeFile(wb, `big-push-projects-${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+function exportToPDF(rows: BigPushProject[], cols: DownloadColKey[]) {
+  const doc = new jsPDF({ orientation: cols.length > 5 ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' })
+  const headers = cols.map(k => DOWNLOAD_COLUMNS.find(c => c.key === k)!.label)
+
+  doc.setFontSize(13)
+  doc.setTextColor(24, 24, 27)
+  doc.text('Big Push Infrastructure Programme', 14, 18)
+  doc.setFontSize(8)
+  doc.setTextColor(113, 113, 122)
+  doc.text(`Generated: ${new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' })}   ·   ${rows.length} project${rows.length !== 1 ? 's' : ''}`, 14, 25)
+
+  autoTable(doc, {
+    startY: 31,
+    head: [headers],
+    body: rows.map(p => getRowValues(p, cols)),
+    styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
+    headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    tableLineColor: [228, 228, 231],
+    tableLineWidth: 0.1,
+  })
+
+  doc.save(`big-push-projects-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
+// ─── Download modal ───────────────────────────────────────────────────────────
+
+interface DownloadModalProps {
+  format: DownloadFormat
+  rows: BigPushProject[]
+  onClose: () => void
+}
+
+function DownloadModal({ format, rows, onClose }: DownloadModalProps) {
+  const allKeys = DOWNLOAD_COLUMNS.map(c => c.key)
+  const [selected, setSelected] = useState<Set<DownloadColKey>>(new Set(allKeys))
+
+  function toggle(key: DownloadColKey) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  function handleDownload() {
+    const cols = allKeys.filter(k => selected.has(k))
+    if (cols.length === 0) { return }
+    if (format === 'excel') exportToExcel(rows, cols)
+    else exportToPDF(rows, cols)
+    onClose()
+  }
+
+  const isExcel = format === 'excel'
+  const Icon = isExcel ? FileSpreadsheet : FileText
+  const accent = isExcel ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'
+
+  return (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-xl border shadow-xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b">
+          <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border', accent)}>
+            <Icon size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Download as {isExcel ? 'Excel' : 'PDF'}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{rows.length} project{rows.length !== 1 ? 's' : ''} · select columns to include</p>
+          </div>
+          <button onClick={onClose} className="shrink-0 p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100">
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Column checkboxes */}
+        <div className="px-5 py-4 space-y-1">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-zinc-700">Columns</p>
+            <button
+              className="text-[11px] text-brand hover:underline"
+              onClick={() => setSelected(selected.size === allKeys.length ? new Set() : new Set(allKeys))}
+            >
+              {selected.size === allKeys.length ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          {DOWNLOAD_COLUMNS.map(col => (
+            <label key={col.key} className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg cursor-pointer hover:bg-zinc-50 group">
+              <input
+                type="checkbox"
+                checked={selected.has(col.key)}
+                onChange={() => toggle(col.key)}
+                className="w-3.5 h-3.5 accent-brand rounded"
+              />
+              <span className="text-sm text-zinc-700 group-hover:text-zinc-900">{col.label}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 px-5 pb-5">
+          <button
+            onClick={onClose}
+            className="flex-1 h-9 rounded-md border border-zinc-200 text-sm text-zinc-600 hover:bg-zinc-50 font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={selected.size === 0}
+            className={cn(
+              'flex-1 h-9 rounded-md text-sm font-medium text-white flex items-center justify-center gap-2',
+              isExcel ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-300' : 'bg-red-600 hover:bg-red-700 disabled:bg-red-300',
+              selected.size === 0 && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <Download size={13} />
+            Download {isExcel ? 'Excel' : 'PDF'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sort helpers ──────────────────────────────────────────────────────────────
 
 type SortCol = 'title' | 'contractor' | 'agency' | 'region' | 'progress'
@@ -420,6 +584,19 @@ export function DataWarehouse() {
   const [agencyFilter, setAgencyFilter] = useState<string | null>(null)
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({ col: 'title', dir: 'asc' })
   const [modal, setModal] = useState<ModalState>(null)
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat | null>(null)
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false)
+  const downloadRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (downloadRef.current && !downloadRef.current.contains(e.target as Node)) {
+        setDownloadMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const activitySummaries = useMemo(() => buildActivitySummaries(activities), [activities])
 
@@ -491,14 +668,49 @@ export function DataWarehouse() {
         title="Data Warehouse"
         subtitle={`Big Push Infrastructure Programme · ${projects.length} projects`}
         actions={
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={cn(isFetching && 'animate-spin')} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Refresh */}
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={cn(isFetching && 'animate-spin')} />
+              Refresh
+            </button>
+
+            {/* Download dropdown */}
+            <div ref={downloadRef} className="relative">
+              <button
+                onClick={() => setDownloadMenuOpen(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors"
+              >
+                <Download size={12} />
+                Download
+                <ChevronDown size={11} className={cn('transition-transform', downloadMenuOpen && 'rotate-180')} />
+              </button>
+
+              {downloadMenuOpen && (
+                <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg border shadow-lg z-50 overflow-hidden">
+                  <button
+                    onClick={() => { setDownloadFormat('excel'); setDownloadMenuOpen(false) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                  >
+                    <FileSpreadsheet size={13} className="text-green-600 shrink-0" />
+                    Excel (.xlsx)
+                  </button>
+                  <div className="border-t" />
+                  <button
+                    onClick={() => { setDownloadFormat('pdf'); setDownloadMenuOpen(false) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                  >
+                    <FileText size={13} className="text-red-600 shrink-0" />
+                    PDF (.pdf)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         }
       />
 
@@ -690,6 +902,15 @@ export function DataWarehouse() {
           onClose={() => setModal(null)}
           project={modal.project}
           existing={modal.existing}
+        />
+      )}
+
+      {/* Download column-select modal */}
+      {downloadFormat && (
+        <DownloadModal
+          format={downloadFormat}
+          rows={filtered}
+          onClose={() => setDownloadFormat(null)}
         />
       )}
     </div>
