@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Handshake, CalendarCheck, Users, MessageSquare, ArrowRight, Clock, Eye,
@@ -88,6 +88,17 @@ function useRecentMeetings() {
   })
 }
 
+// ─── Mobile hook ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpoint)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < breakpoint)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [breakpoint])
+  return isMobile
+}
+
 // ─── Shared chart tooltip style ───────────────────────────────────────────────
 const TIP = { contentStyle: { fontSize: 12, borderRadius: 8, border: '1px solid #e4e4e7' }, cursor: { fill: '#f4f4f5' } }
 
@@ -96,7 +107,7 @@ function SectionLabel({ children, sub }: { children: React.ReactNode; sub?: stri
   return (
     <div className="flex items-end gap-3 mb-3">
       <h2 className="text-sm font-semibold text-zinc-800">{children}</h2>
-      {sub && <span className="text-xs text-zinc-400 mb-px">{sub}</span>}
+      {sub && <span className="text-xs text-zinc-400 mb-px hidden sm:inline">{sub}</span>}
     </div>
   )
 }
@@ -107,14 +118,14 @@ function ChartCard({ title, sub, children, action }: {
 }) {
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between py-3 px-5 border-b">
-        <div>
+      <CardHeader className="flex flex-row items-start sm:items-center justify-between gap-2 py-3 px-4 sm:px-5 border-b">
+        <div className="min-w-0">
           <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-          {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+          {sub && <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">{sub}</p>}
         </div>
         {action}
       </CardHeader>
-      <CardContent className="p-4">{children}</CardContent>
+      <CardContent className="p-3 sm:p-4">{children}</CardContent>
     </Card>
   )
 }
@@ -196,6 +207,8 @@ export function Dashboard() {
   const bestPct  = Number(settings?.best_case_pct  ?? 60)
   const worstPct = Number(settings?.worst_case_pct ?? 30)
 
+  const isMobile = useIsMobile()
+
   const greeting = (() => {
     const h = new Date().getHours()
     if (h < 12) return 'Good morning'
@@ -213,14 +226,17 @@ export function Dashboard() {
   ].filter(d => d.value > 0)
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-5 lg:space-y-8 pb-10">
 
       {/* ── Greeting ── */}
       <div>
-        <h1 className="text-xl font-bold text-zinc-900">
+        <h1 className="text-lg sm:text-xl font-bold text-zinc-900">
           {greeting}{firstName ? `, ${firstName}` : ''} 👋
         </h1>
-        <p className="text-sm text-zinc-500 mt-0.5">{formatDate(new Date().toISOString())} · Here's what's happening today</p>
+        <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
+          {formatDate(new Date().toISOString())}
+          <span className="hidden sm:inline"> · Here's what's happening today</span>
+        </p>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════
@@ -282,7 +298,7 @@ export function Dashboard() {
       ══════════════════════════════════════════════════════════════ */}
       <div>
         <SectionLabel sub="big push infrastructure programme">Big Push Programme</SectionLabel>
-        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4">
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 sm:p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <KPICard
               title="Total Projects"
@@ -339,13 +355,13 @@ export function Dashboard() {
             }
           >
             {execData?.valueByStatus?.length ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={execData.valueByStatus} layout="vertical" margin={{ left: 8, right: 20 }}>
+              <ResponsiveContainer width="100%" height={isMobile ? 180 : 220}>
+                <BarChart data={execData.valueByStatus} layout="vertical" margin={{ left: 4, right: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false}
+                  <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false}
                     tickFormatter={v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v)}
                   />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={90} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: isMobile ? 9 : 11 }} axisLine={false} tickLine={false} width={isMobile ? 72 : 90} />
                   <Tooltip {...TIP} formatter={(v: number) => [formatNumber(v), 'Proposed Value']} />
                   <Bar dataKey="value" fill={BRAND} radius={[0, 4, 4, 0]} name="Value" />
                 </BarChart>
@@ -431,7 +447,7 @@ export function Dashboard() {
             }
           >
             {analytics?.monthlyTrend?.length ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={isMobile ? 180 : 220}>
                 <AreaChart data={analytics.monthlyTrend} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gradExt" x1="0" y1="0" x2="0" y2="1">
@@ -470,7 +486,7 @@ export function Dashboard() {
               </div>
             )}
             {ddgData?.monthlyTrend?.length ? (
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={isMobile ? 150 : 180}>
                 <LineChart data={ddgData.monthlyTrend} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -496,16 +512,19 @@ export function Dashboard() {
           {/* Activity by Region */}
           <ChartCard title="Activity by Region" sub="registrations · payments · inspections">
             {bigPush.byRegion.length ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={bigPush.byRegion} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={isMobile ? 200 : 240}>
+                <BarChart
+                  data={isMobile ? bigPush.byRegion.slice(0, 4) : bigPush.byRegion}
+                  margin={{ top: 4, right: 4, left: -10, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="region" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <XAxis dataKey="region" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip {...TIP} />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                  <Bar dataKey="Registrations" fill={BLUE}  radius={[3, 3, 0, 0]} barSize={14} />
-                  <Bar dataKey="Payments"      fill={GREEN} radius={[3, 3, 0, 0]} barSize={14} />
-                  <Bar dataKey="Inspections"   fill={AMBER} radius={[3, 3, 0, 0]} barSize={14} />
+                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+                  <Bar dataKey="Registrations" fill={BLUE}  radius={[3, 3, 0, 0]} barSize={isMobile ? 10 : 14} />
+                  <Bar dataKey="Payments"      fill={GREEN} radius={[3, 3, 0, 0]} barSize={isMobile ? 10 : 14} />
+                  <Bar dataKey="Inspections"   fill={AMBER} radius={[3, 3, 0, 0]} barSize={isMobile ? 10 : 14} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -516,15 +535,15 @@ export function Dashboard() {
           {/* Top Projects by Activity */}
           <ChartCard title="Top Projects by Activity" sub="total logged activity value">
             {bigPush.topProjects.filter(p => p.total > 0).length ? (
-              <ResponsiveContainer width="100%" height={240}>
+              <ResponsiveContainer width="100%" height={isMobile ? 200 : 240}>
                 <BarChart
-                  data={bigPush.topProjects.filter(p => p.total > 0)}
+                  data={bigPush.topProjects.filter(p => p.total > 0).slice(0, isMobile ? 5 : 8)}
                   layout="vertical"
-                  margin={{ left: 8, right: 20 }}
+                  margin={{ left: 4, right: 20 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
+                  <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={isMobile ? 80 : 110} />
                   <Tooltip {...TIP} formatter={(v: number) => [v.toLocaleString(), 'Activity']} />
                   <Bar dataKey="total" fill={BRAND} radius={[0, 4, 4, 0]} name="Total Activity" />
                 </BarChart>
@@ -550,7 +569,7 @@ export function Dashboard() {
         {/* Meeting cadence buckets */}
         <ChartCard title="Meeting Cadence" sub="days since last meeting per partnership">
           {analytics?.cadenceBuckets?.some(b => b.count > 0) ? (
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={isMobile ? 170 : 200}>
               <BarChart data={analytics.cadenceBuckets} layout="vertical" margin={{ left: 4, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -684,11 +703,11 @@ export function Dashboard() {
                 <thead>
                   <tr className="border-b bg-zinc-50/60">
                     <th className="text-left px-5 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Partnership</th>
-                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Stakeholders</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide hidden md:table-cell">Stakeholders</th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Proposed</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Best ({bestPct}%)</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Worst ({worstPct}%)</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide hidden sm:table-cell">Proposed</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide hidden lg:table-cell">Best ({bestPct}%)</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide hidden lg:table-cell">Worst ({worstPct}%)</th>
                     <th className="px-4 py-2.5 w-[44px]" />
                   </tr>
                 </thead>
@@ -704,17 +723,17 @@ export function Dashboard() {
                           </Link>
                           <p className="text-xs text-muted-foreground mt-0.5">{formatDate(p.created_at)}</p>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground max-w-[180px]">
+                        <td className="px-4 py-3 text-muted-foreground max-w-[180px] hidden md:table-cell">
                           <span className="line-clamp-1 text-xs" title={names}>{names || '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={p.status?.name ?? ''} color={p.status?.color} />
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-xs">{formatNumber(proposed)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-xs text-green-600 font-medium">
+                        <td className="px-4 py-3 text-right tabular-nums text-xs hidden sm:table-cell">{formatNumber(proposed)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-xs text-green-600 font-medium hidden lg:table-cell">
                           {formatNumber(calcProjection(proposed, bestPct))}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-xs text-amber-600 font-medium">
+                        <td className="px-4 py-3 text-right tabular-nums text-xs text-amber-600 font-medium hidden lg:table-cell">
                           {formatNumber(calcProjection(proposed, worstPct))}
                         </td>
                         <td className="px-4 py-3 text-center">
