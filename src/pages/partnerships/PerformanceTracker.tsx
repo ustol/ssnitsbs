@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   HardHat, GitMerge, X, Settings2, ChevronRight,
-  UserPlus, ClipboardCheck, Pencil, Trash2, Plus, Loader2,
+  UserPlus, ClipboardCheck, Pencil, Trash2, Plus, Loader2, Search,
 } from 'lucide-react'
 import {
   useDataWarehouse, useProjectActivities, buildActivitySummaries,
@@ -315,9 +315,10 @@ export function PerformanceTracker() {
   const { data: settings  } = useSettings()
   const { mutateAsync: updateSetting } = useUpdateSetting()
 
-  const [expanded,   setExpanded]   = useState<Set<string>>(new Set())
-  const [aliasOpen,  setAliasOpen]  = useState(false)
+  const [expanded,    setExpanded]    = useState<Set<string>>(new Set())
+  const [aliasOpen,   setAliasOpen]   = useState(false)
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
+  const [search,      setSearch]      = useState('')
 
   const isLoading = loadingP || loadingA
 
@@ -356,6 +357,15 @@ export function PerformanceTracker() {
 
     return Object.values(map).sort((a, b) => a.contractor.localeCompare(b.contractor))
   }, [projects, activities, aliasMap])
+
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.toLowerCase()
+    return rows.filter(r =>
+      r.contractor.toLowerCase().includes(q) ||
+      r.projects.some(p => p.project.title.toLowerCase().includes(q))
+    )
+  }, [rows, search])
 
   function toggleExpand(contractor: string) {
     setExpanded(prev => {
@@ -397,6 +407,25 @@ export function PerformanceTracker() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+        <Input
+          placeholder="Search contractors or projects…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-8 h-8 text-sm"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
       {/* Table */}
       <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
@@ -421,19 +450,19 @@ export function PerformanceTracker() {
                     <td />
                   </tr>
                 ))
-              ) : rows.length === 0 ? (
+              ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-10 h-10 rounded-xl bg-zinc-100 flex items-center justify-center">
                         <HardHat size={18} className="text-zinc-400" />
                       </div>
-                      <p className="text-sm font-medium text-zinc-500">No contractor data yet</p>
-                      <p className="text-xs text-zinc-400">Add projects in the Data Warehouse to see them here</p>
+                      <p className="text-sm font-medium text-zinc-500">{search ? 'No results found' : 'No contractor data yet'}</p>
+                      <p className="text-xs text-zinc-400">{search ? `No contractors or projects match "${search}"` : 'Add projects in the Data Warehouse to see them here'}</p>
                     </div>
                   </td>
                 </tr>
-              ) : rows.map((row, ri) => {
+              ) : filteredRows.map((row, ri) => {
                 const isOpen = expanded.has(row.contractor)
                 return (
                   <>
@@ -556,7 +585,7 @@ export function PerformanceTracker() {
         {rows.length > 0 && (
           <div className="px-4 py-2 border-t border-zinc-100 bg-zinc-50">
             <span className="text-[11px] text-zinc-400">
-              {rows.length} contractor{rows.length !== 1 ? 's' : ''}
+              {search ? `${filteredRows.length} of ${rows.length}` : rows.length} contractor{rows.length !== 1 ? 's' : ''}
               {aliasCount > 0 && ` · ${aliasCount} alias${aliasCount !== 1 ? 'es' : ''} active`}
             </span>
           </div>
