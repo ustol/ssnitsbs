@@ -1,150 +1,23 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
-import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, X, Loader2, ClipboardCheck, Pencil, Trash2, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react'
+import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, ClipboardCheck, Download, ChevronDown, FileSpreadsheet, FileText, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
   useDataWarehouse, useProjectActivities, buildActivitySummaries,
-  useLogActivity, useUpdateActivity, useDeleteActivity,
   type BigPushProject, type ActivityType, type ActivityEntry,
 } from '@/hooks/useDataWarehouse'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
 
-// ─── Activity log/edit modal ───────────────────────────────────────────────────
+// ─── Activity meta (display only) ─────────────────────────────────────────────
 
 const ACTIVITY_META: Record<Exclude<ActivityType, 'inspection'>, { label: string; icon: React.ElementType; color: string; isCurrency: boolean }> = {
   registration: { label: 'Registrations', icon: UserPlus,   color: 'text-blue-600',  isCurrency: false },
   validation:   { label: 'Validations',   icon: BadgeCheck, color: 'text-green-600', isCurrency: true  },
   payment:      { label: 'Payments',      icon: Wallet,     color: 'text-amber-600', isCurrency: true  },
-}
-
-interface ActivityModalProps {
-  open: boolean
-  onClose: () => void
-  project: BigPushProject
-  activityType: Exclude<ActivityType, 'inspection'>
-  existing?: ActivityEntry
-}
-
-function ActivityModal({ open, onClose, project, activityType, existing }: ActivityModalProps) {
-  const meta = ACTIVITY_META[activityType]
-  const today = new Date().toISOString().split('T')[0]
-  const isEdit = !!existing
-
-  const [value, setValue] = useState(existing ? String(existing.value) : '')
-  const [date, setDate] = useState(existing?.date ?? today)
-  const [notes, setNotes] = useState(existing?.notes ?? '')
-
-  const { mutateAsync: logActivity, isPending: isLogging } = useLogActivity()
-  const { mutateAsync: updateActivity, isPending: isUpdating } = useUpdateActivity()
-  const isPending = isLogging || isUpdating
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const num = parseFloat(value.replace(/,/g, ''))
-    if (isNaN(num) || num < 0) {
-      toast.error('Please enter a valid number')
-      return
-    }
-    try {
-      if (isEdit) {
-        await updateActivity({ id: existing.id, value: num, activity_date: date, notes: notes || null })
-        toast.success(`${meta.label} updated`)
-      } else {
-        await logActivity({ project_id: project.id, activity_type: activityType, value: num, activity_date: date, notes: notes || undefined })
-        toast.success(`${meta.label} logged successfully`)
-      }
-      onClose()
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b">
-          <div className={cn('w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-zinc-100')}>
-            <meta.icon size={14} className={meta.color} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-tight">{isEdit ? 'Edit' : 'Log'} {meta.label}</p>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{project.title}</p>
-          </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0">
-            <X size={15} />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
-          {/* Value */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">
-              {meta.isCurrency ? 'Amount (GHS)' : 'Count (registrations)'}
-            </label>
-            <div className="relative">
-              {meta.isCurrency && (
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 font-medium pointer-events-none">
-                  GHS
-                </span>
-              )}
-              <Input
-                type="number"
-                min="0"
-                step={meta.isCurrency ? '0.01' : '1'}
-                placeholder={meta.isCurrency ? '0.00' : '0'}
-                value={value}
-                onChange={e => setValue(e.target.value)}
-                required
-                className={cn('h-9 text-sm', meta.isCurrency && 'pl-11')}
-                autoFocus
-              />
-            </div>
-          </div>
-
-          {/* Date */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">Date of Activity</label>
-            <Input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              required
-              max={today}
-              className="h-9 text-sm"
-            />
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">
-              Notes <span className="text-zinc-400 font-normal">(optional)</span>
-            </label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Any additional context…"
-              rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-            />
-          </div>
-
-          <Button type="submit" disabled={isPending} className="w-full gap-2">
-            {isPending ? <Loader2 size={14} className="animate-spin" /> : <meta.icon size={14} />}
-            {isPending ? 'Saving…' : isEdit ? `Update ${meta.label}` : `Save ${meta.label}`}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 // ─── Progress badge ────────────────────────────────────────────────────────────
@@ -174,182 +47,41 @@ function ProgressBadge({ value }: { value: string | null }) {
   )
 }
 
-// ─── Activity cell ─────────────────────────────────────────────────────────────
+// ─── Activity cell (read-only) ─────────────────────────────────────────────────
 
-function ActivityCell({
-  activityType, projectId, summaries, onEdit, onDelete,
-}: {
+function ActivityCell({ activityType, projectId, summaries }: {
   activityType: Exclude<ActivityType, 'inspection'>
   projectId: string
   summaries: Record<string, { registration: ActivityEntry | null; validation: ActivityEntry | null; payment: ActivityEntry | null; inspection: ActivityEntry | null }>
-  onEdit: () => void
-  onDelete: () => void
 }) {
-  const meta = ACTIVITY_META[activityType]
+  const meta  = ACTIVITY_META[activityType]
   const entry = summaries[projectId]?.[activityType] ?? null
-
-  const fmt = (v: number) =>
+  const fmt   = (v: number) =>
     activityType === 'registration'
       ? v.toLocaleString()
       : `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-  return (
-    <div className="flex items-center gap-1 group">
-      <div className="flex flex-col min-w-0">
-        {entry ? (
-          <>
-            <span className={cn('text-xs font-semibold tabular-nums', meta.color)}>{fmt(entry.value)}</span>
-            <span className="text-[0.6rem] text-zinc-400 leading-tight">{entry.date}</span>
-          </>
-        ) : (
-          <span className="text-zinc-300 text-xs">—</span>
-        )}
-      </div>
-      <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {entry ? (
-          <>
-            <button onClick={onEdit} title={`Edit ${meta.label}`} className="p-0.5 rounded hover:bg-zinc-100">
-              <Pencil size={11} className={cn(meta.color, 'opacity-70')} />
-            </button>
-            <button onClick={onDelete} title={`Delete ${meta.label}`} className="p-0.5 rounded hover:bg-red-50">
-              <Trash2 size={11} className="text-red-400 opacity-70" />
-            </button>
-          </>
-        ) : (
-          <button onClick={onEdit} title={`Log ${meta.label}`} className="p-0.5 rounded hover:bg-zinc-100">
-            <meta.icon size={12} className={cn(meta.color, 'opacity-70')} />
-          </button>
-        )}
-      </div>
+  return entry ? (
+    <div className="flex flex-col min-w-0">
+      <span className={cn('text-xs font-semibold tabular-nums', meta.color)}>{fmt(entry.value)}</span>
+      <span className="text-[0.6rem] text-zinc-400 leading-tight">{entry.date}</span>
     </div>
-  )
+  ) : <span className="text-zinc-300 text-xs">—</span>
 }
 
-// ─── Inspection modal ──────────────────────────────────────────────────────────
+// ─── Inspection cell (read-only) ───────────────────────────────────────────────
 
-interface InspectionModalProps {
-  open: boolean
-  onClose: () => void
-  project: BigPushProject
-  existing?: ActivityEntry
-}
-
-function InspectionModal({ open, onClose, project, existing }: InspectionModalProps) {
-  const today = new Date().toISOString().split('T')[0]
-  const isEdit = !!existing
-
-  const [date, setDate] = useState(existing?.date ?? today)
-  const [notes, setNotes] = useState(existing?.notes ?? '')
-
-  const { mutateAsync: logActivity, isPending: isLogging } = useLogActivity()
-  const { mutateAsync: updateActivity, isPending: isUpdating } = useUpdateActivity()
-  const isPending = isLogging || isUpdating
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    try {
-      if (isEdit) {
-        await updateActivity({ id: existing.id, value: 1, activity_date: date, notes: notes || null })
-        toast.success('Inspection updated')
-      } else {
-        await logActivity({ project_id: project.id, activity_type: 'inspection', value: 1, activity_date: date, notes: notes || undefined })
-        toast.success('Inspection logged successfully')
-      }
-      onClose()
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b">
-          <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-zinc-100">
-            <ClipboardCheck size={14} className="text-purple-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-tight">{isEdit ? 'Edit' : 'Log'} Inspection</p>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{project.title}</p>
-          </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0">
-            <X size={15} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">Inspection Date</label>
-            <Input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              required
-              max={today}
-              className="h-9 text-sm"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">
-              Notes <span className="text-zinc-400 font-normal">(optional)</span>
-            </label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Any additional context…"
-              rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-            />
-          </div>
-          <Button type="submit" disabled={isPending} className="w-full gap-2">
-            {isPending ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />}
-            {isPending ? 'Saving…' : isEdit ? 'Update Inspection' : 'Save Inspection'}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Inspection cell ───────────────────────────────────────────────────────────
-
-function InspectionCell({ projectId, summaries, onEdit, onDelete }: {
+function InspectionCell({ projectId, summaries }: {
   projectId: string
   summaries: Record<string, { inspection: ActivityEntry | null }>
-  onEdit: () => void
-  onDelete: () => void
 }) {
   const entry = summaries[projectId]?.inspection ?? null
-  return (
-    <div className="flex items-center gap-1 group">
-      <div className="flex flex-col min-w-0">
-        {entry ? (
-          <>
-            <span className="text-xs font-semibold text-purple-600 tabular-nums">{entry.date}</span>
-            <span className="text-[0.6rem] text-zinc-400 leading-tight">Last inspected</span>
-          </>
-        ) : (
-          <span className="text-zinc-300 text-xs">—</span>
-        )}
-      </div>
-      <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {entry ? (
-          <>
-            <button onClick={onEdit} title="Edit Inspection" className="p-0.5 rounded hover:bg-zinc-100">
-              <Pencil size={11} className="text-purple-600 opacity-70" />
-            </button>
-            <button onClick={onDelete} title="Delete Inspection" className="p-0.5 rounded hover:bg-red-50">
-              <Trash2 size={11} className="text-red-400 opacity-70" />
-            </button>
-          </>
-        ) : (
-          <button onClick={onEdit} title="Log Inspection" className="p-0.5 rounded hover:bg-zinc-100">
-            <ClipboardCheck size={12} className="text-purple-600 opacity-70" />
-          </button>
-        )}
-      </div>
+  return entry ? (
+    <div className="flex flex-col min-w-0">
+      <span className="text-xs font-semibold text-purple-600 tabular-nums">{entry.date}</span>
+      <span className="text-[0.6rem] text-zinc-400 leading-tight">Last inspected</span>
     </div>
-  )
+  ) : <span className="text-zinc-300 text-xs">—</span>
 }
 
 // ─── Download columns definition ─────────────────────────────────────────────
@@ -572,18 +304,14 @@ function LoadingSkeleton() {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-type ModalState = { project: BigPushProject; type: ActivityType; existing?: ActivityEntry } | null
-
 export function DataWarehouse() {
   const { data: projects = [], isLoading: loadingP, error, refetch, isFetching } = useDataWarehouse()
   const { data: activities = [], isLoading: loadingA } = useProjectActivities()
-  const { mutateAsync: deleteActivity } = useDeleteActivity()
 
   const [search, setSearch] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
   const [agencyFilter, setAgencyFilter] = useState<string | null>(null)
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({ col: 'title', dir: 'asc' })
-  const [modal, setModal] = useState<ModalState>(null)
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat | null>(null)
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false)
   const downloadRef = useRef<HTMLDivElement>(null)
@@ -647,16 +375,6 @@ export function DataWarehouse() {
 
   function toggleSort(col: SortCol) {
     setSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })
-  }
-
-  async function handleDelete(entry: ActivityEntry, label: string) {
-    if (!window.confirm(`Delete this ${label} entry? This cannot be undone.`)) return
-    try {
-      await deleteActivity(entry.id)
-      toast.success(`${label} entry deleted`)
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
   }
 
   const isLoading = loadingP || loadingA
@@ -832,35 +550,19 @@ export function DataWarehouse() {
                       </td>
                       {/* Registrations */}
                       <td className="px-4 py-3">
-                        <ActivityCell
-                          activityType="registration" projectId={p.id} summaries={activitySummaries}
-                          onEdit={() => setModal({ project: p, type: 'registration', existing: activitySummaries[p.id]?.registration ?? undefined })}
-                          onDelete={() => { const e = activitySummaries[p.id]?.registration; if (e) handleDelete(e, 'Registrations') }}
-                        />
+                        <ActivityCell activityType="registration" projectId={p.id} summaries={activitySummaries} />
                       </td>
                       {/* Validations */}
                       <td className="px-4 py-3">
-                        <ActivityCell
-                          activityType="validation" projectId={p.id} summaries={activitySummaries}
-                          onEdit={() => setModal({ project: p, type: 'validation', existing: activitySummaries[p.id]?.validation ?? undefined })}
-                          onDelete={() => { const e = activitySummaries[p.id]?.validation; if (e) handleDelete(e, 'Validations') }}
-                        />
+                        <ActivityCell activityType="validation" projectId={p.id} summaries={activitySummaries} />
                       </td>
                       {/* Payments */}
                       <td className="px-4 py-3">
-                        <ActivityCell
-                          activityType="payment" projectId={p.id} summaries={activitySummaries}
-                          onEdit={() => setModal({ project: p, type: 'payment', existing: activitySummaries[p.id]?.payment ?? undefined })}
-                          onDelete={() => { const e = activitySummaries[p.id]?.payment; if (e) handleDelete(e, 'Payments') }}
-                        />
+                        <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} />
                       </td>
                       {/* Inspection */}
                       <td className="px-4 py-3">
-                        <InspectionCell
-                          projectId={p.id} summaries={activitySummaries}
-                          onEdit={() => setModal({ project: p, type: 'inspection', existing: activitySummaries[p.id]?.inspection ?? undefined })}
-                          onDelete={() => { const e = activitySummaries[p.id]?.inspection; if (e) handleDelete(e, 'Inspection') }}
-                        />
+                        <InspectionCell projectId={p.id} summaries={activitySummaries} />
                       </td>
                     </tr>
                   )) : (
@@ -882,27 +584,6 @@ export function DataWarehouse() {
             )}
           </div>
         </>
-      )}
-
-      {/* Activity log / edit modal */}
-      {modal && modal.type !== 'inspection' && (
-        <ActivityModal
-          key={`${modal.project.id}-${modal.type}-${modal.existing?.id ?? 'new'}`}
-          open={!!modal}
-          onClose={() => setModal(null)}
-          project={modal.project}
-          activityType={modal.type}
-          existing={modal.existing}
-        />
-      )}
-      {modal && modal.type === 'inspection' && (
-        <InspectionModal
-          key={`${modal.project.id}-inspection-${modal.existing?.id ?? 'new'}`}
-          open={!!modal}
-          onClose={() => setModal(null)}
-          project={modal.project}
-          existing={modal.existing}
-        />
       )}
 
       {/* Download column-select modal */}
