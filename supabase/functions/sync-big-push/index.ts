@@ -42,20 +42,19 @@ function extractTitle(html: string): string {
 }
 
 function extractField(html: string, label: string): string | null {
-  // Pattern: "Label: <strong style="color: #ff9900;"> VALUE </strong>"
-  // The value is always in the orange <strong> tag immediately after the label
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(
-    `${escaped}[:\\s]*<strong[^>]*>#ff9900[^>]*>\\s*([^<]+?)\\s*<\\/strong>`,
-    'i',
-  )
-  const m = html.match(regex)
-  if (!m) return null
+  // Find "Label:" anywhere in the HTML (works for both old and new page layouts)
+  const idx = html.indexOf(label + ':')
+  if (idx === -1) return null
 
-  const val = decodeHtml(m[1])
-  // Treat "N/A" or empty as null
-  if (!val || val.toLowerCase() === 'n/a' || val === '-') return null
-  return val
+  // Scan the next 300 chars for the first non-empty text node (text between > and <)
+  const window = html.slice(idx + label.length + 1, idx + label.length + 300)
+  const re = />([^<]+)</g
+  let m
+  while ((m = re.exec(window)) !== null) {
+    const val = decodeHtml(m[1].trim())
+    if (val && val.toLowerCase() !== 'n/a' && val !== '-' && val.length > 0) return val
+  }
+  return null
 }
 
 // ─── Fetch with timeout ────────────────────────────────────────────────────────
@@ -88,9 +87,18 @@ interface ProjectRecord {
   source_url: string
 }
 
+let _debugLogged = false
+
 async function scrapeProject(url: string): Promise<ProjectRecord | null> {
   const html = await fetchText(url, FETCH_TIMEOUT_MS)
   if (!html) return null
+
+  if (!_debugLogged) {
+    _debugLogged = true
+    const idx = html.indexOf('Contractor:')
+    if (idx >= 0) console.log('HTML_SNIPPET:', JSON.stringify(html.slice(Math.max(0, idx - 50), idx + 300)))
+    else console.log('HTML_SNIPPET: "Contractor:" not found in page')
+  }
 
   return {
     title: extractTitle(html),
@@ -156,28 +164,31 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Scraped ${projects.length} OK, ${failed.length} failed`)
+    if (projects.length > 0) {
+      const p = projects[0]
+      console.log(`DEBUG first project: title="${p.title}" contractor="${p.contractor}" contract_sum="${p.contract_sum}" agency="${p.agency}" region="${p.region}"`)
+    }
     if (projects.length === 0) throw new Error('All project pages failed to load')
 
-    // 3 — Replace table (clear activities first due to FK, then projects, then re-insert)
-    const { error: delActErr } = await supabase
-      .from('big_push_activities')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000')
-
-    if (delActErr) throw delActErr
-
-    const { error: delErr } = await supabase
+    // 3 — One-time cleanup: remove old seed rows that have no source_url
+    const { error: cleanErr } = await supabase
       .from('big_push_projects')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000')
+      .is('source_url', null)
 
-    if (delErr) throw delErr
+    if (cleanErr) throw cleanErr
 
-    const { error: insErr } = await supabase
+    // 4 — Upsert by source_url: update existing rows, insert new ones, never delete
+    console.log(`Upserting ${projects.length} projects…`)
+    const { error: upsertErr } = await supabase
       .from('big_push_projects')
-      .insert(projects)
+      .upsert(projects, { onConflict: 'source_url', ignoreDuplicates: false })
 
-    if (insErr) throw insErr
+    if (upsertErr) {
+      console.error('UPSERT ERROR:', JSON.stringify(upsertErr))
+      throw upsertErr
+    }
+    console.log('Upsert completed OK')
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
 

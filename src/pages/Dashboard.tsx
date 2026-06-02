@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom'
 import {
   Handshake, CalendarCheck, Users, MessageSquare, ArrowRight, Clock, Eye,
   AlertTriangle, MapPin, HardHat, ClipboardList, DollarSign, Wrench, CheckCircle2,
+  Construction,
 } from 'lucide-react'
+
+const MAINTENANCE_MODE = true
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -208,6 +211,23 @@ export function Dashboard() {
   const worstPct = Number(settings?.worst_case_pct ?? 30)
 
   const isMobile = useIsMobile()
+
+  if (MAINTENANCE_MODE) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
+        <div className="rounded-full bg-amber-50 p-6">
+          <Construction className="h-12 w-12 text-amber-500" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-bold text-zinc-900">Dashboard Under Maintenance</h1>
+          <p className="text-sm text-zinc-500 max-w-sm">
+            We're making improvements to the dashboard. It will be back shortly.
+          </p>
+        </div>
+        <p className="text-xs text-zinc-400">Other sections of the app are still available from the sidebar.</p>
+      </div>
+    )
+  }
 
   const greeting = (() => {
     const h = new Date().getHours()

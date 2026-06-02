@@ -1,10 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
-import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, ClipboardCheck, Download, ChevronDown, FileSpreadsheet, FileText, X } from 'lucide-react'
+import { Search, Database, RefreshCw, ExternalLink, UserPlus, BadgeCheck, Wallet, ClipboardCheck, Download, ChevronDown, FileSpreadsheet, FileText, X, Trash2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
-  useDataWarehouse, useProjectActivities, buildActivitySummaries,
+  useDataWarehouse, useProjectActivities, buildActivitySummaries, useDeleteActivity,
   type BigPushProject, type ActivityType, type ActivityEntry,
 } from '@/hooks/useDataWarehouse'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -49,10 +49,11 @@ function ProgressBadge({ value }: { value: string | null }) {
 
 // ─── Activity cell (read-only) ─────────────────────────────────────────────────
 
-function ActivityCell({ activityType, projectId, summaries }: {
+function ActivityCell({ activityType, projectId, summaries, onDelete }: {
   activityType: Exclude<ActivityType, 'inspection'>
   projectId: string
   summaries: Record<string, { registration: ActivityEntry | null; validation: ActivityEntry | null; payment: ActivityEntry | null; inspection: ActivityEntry | null }>
+  onDelete: (id: string) => void
 }) {
   const meta  = ACTIVITY_META[activityType]
   const entry = summaries[projectId]?.[activityType] ?? null
@@ -62,9 +63,18 @@ function ActivityCell({ activityType, projectId, summaries }: {
       : `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   return entry ? (
-    <div className="flex flex-col min-w-0">
-      <span className={cn('text-xs font-semibold tabular-nums', meta.color)}>{fmt(entry.value)}</span>
-      <span className="text-[0.6rem] text-zinc-400 leading-tight">{entry.date}</span>
+    <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex flex-col min-w-0">
+        <span className={cn('text-xs font-semibold tabular-nums', meta.color)}>{fmt(entry.value)}</span>
+        <span className="text-[0.6rem] text-zinc-400 leading-tight">{entry.date}</span>
+      </div>
+      <button
+        onClick={() => onDelete(entry.id)}
+        className="p-0.5 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+        title="Delete this entry"
+      >
+        <Trash2 size={11} />
+      </button>
     </div>
   ) : <span className="text-zinc-300 text-xs">—</span>
 }
@@ -307,6 +317,7 @@ function LoadingSkeleton() {
 export function DataWarehouse() {
   const { data: projects = [], isLoading: loadingP, error, refetch, isFetching } = useDataWarehouse()
   const { data: activities = [], isLoading: loadingA } = useProjectActivities()
+  const { mutate: deleteActivity } = useDeleteActivity()
 
   const [search, setSearch] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
@@ -550,15 +561,15 @@ export function DataWarehouse() {
                       </td>
                       {/* Registrations */}
                       <td className="px-4 py-3">
-                        <ActivityCell activityType="registration" projectId={p.id} summaries={activitySummaries} />
+                        <ActivityCell activityType="registration" projectId={p.id} summaries={activitySummaries} onDelete={deleteActivity} />
                       </td>
                       {/* Validations */}
                       <td className="px-4 py-3">
-                        <ActivityCell activityType="validation" projectId={p.id} summaries={activitySummaries} />
+                        <ActivityCell activityType="validation" projectId={p.id} summaries={activitySummaries} onDelete={deleteActivity} />
                       </td>
                       {/* Payments */}
                       <td className="px-4 py-3">
-                        <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} />
+                        <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} onDelete={deleteActivity} />
                       </td>
                       {/* Inspection */}
                       <td className="px-4 py-3">
