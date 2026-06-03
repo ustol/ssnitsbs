@@ -1,429 +1,568 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  BarChart3, TrendingUp, Building2, Users, UserCheck, ChevronRight, Clock,
-  Activity, Layers, CalendarDays, Inbox,
+  Sparkles, Download, Loader2, Activity, Layers, CalendarDays, Inbox,
+  Building2, UserCheck, Users, Clock, ChevronRight, DollarSign,
+  Handshake, MessageSquare, HardHat, TrendingUp, RefreshCw,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import {
+  useExecutiveReport,
+  useHealthScorecardReport,
+  useMeetingAnalyticsReport,
+  useDDGIntelligenceReport,
+} from '@/hooks/useReports'
+import { useDataWarehouse, useProjectActivities, buildActivitySummaries } from '@/hooks/useDataWarehouse'
 import { useSettings } from '@/hooks/useSettings'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { useAISummary } from '@/hooks/useAISummary'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { generatePdf } from '@/lib/pdf'
 import { formatNumber, calcProjection } from '@/lib/utils'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, AreaChart, Area, Legend,
 } from 'recharts'
 
-const COLORS = ['#E8621A', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
+// ─── Colours ───────────────────────────────────────────────────────────────────
+const BRAND  = '#E8621A'
+const GREEN  = '#22c55e'
+const AMBER  = '#f59e0b'
+const RED    = '#ef4444'
+const INDIGO = '#6366f1'
+const TIP    = { contentStyle: { fontSize: 11, borderRadius: 8, border: '1px solid #e4e4e7' }, cursor: { fill: '#f4f4f5' } }
 
-function useReportData() {
-  return useQuery({
-    queryKey: ['report-data'],
-    queryFn: async () => {
-      const [partnerships, extMeetings, intMeetings, ddgFeedback, extStakeholders, intStakeholders] =
-        await Promise.all([
-          supabase.from('partnerships').select('id, title, proposed_value, status:status_lookup(name, color)'),
-          supabase.from('external_meetings').select('id, meeting_date, partnership_id'),
-          supabase.from('internal_meetings').select('id, meeting_date, partnership_id'),
-          supabase.from('ddg_feedback').select('id, feedback_type, is_actioned, received_date'),
-          supabase.from('external_stakeholders').select('id', { count: 'exact', head: true }),
-          supabase.from('internal_stakeholders').select('id', { count: 'exact', head: true }),
-        ])
-
-      const partnershipsByStatus: Record<string, number> = {}
-      let totalProposed = 0
-      for (const p of partnerships.data ?? []) {
-        const name = ((p as Record<string, unknown>).status as { name: string } | null)?.name ?? 'Unknown'
-        partnershipsByStatus[name] = (partnershipsByStatus[name] ?? 0) + 1
-        totalProposed += Number(p.proposed_value ?? 0)
-      }
-
-      const meetingsByMonth: Record<string, number> = {}
-      for (const m of [...(extMeetings.data ?? []), ...(intMeetings.data ?? [])]) {
-        if (!m.meeting_date) continue
-        const month = m.meeting_date.slice(0, 7)
-        meetingsByMonth[month] = (meetingsByMonth[month] ?? 0) + 1
-      }
-
-      const ddgByType: Record<string, number> = {}
-      for (const f of ddgFeedback.data ?? []) {
-        ddgByType[f.feedback_type] = (ddgByType[f.feedback_type] ?? 0) + 1
-      }
-
-      return {
-        totalPartnerships: (partnerships.data ?? []).length,
-        totalExtStakeholders: extStakeholders.count ?? 0,
-        totalIntStakeholders: intStakeholders.count ?? 0,
-        totalProposed,
-        totalExtMeetings: (extMeetings.data ?? []).length,
-        totalIntMeetings: (intMeetings.data ?? []).length,
-        totalDDG: (ddgFeedback.data ?? []).length,
-        pendingDDG: (ddgFeedback.data ?? []).filter(f => !f.is_actioned).length,
-        partnershipsByStatus: Object.entries(partnershipsByStatus).map(([name, value]) => ({ name, value })),
-        meetingsByMonth: Object.entries(meetingsByMonth)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .slice(-12)
-          .map(([month, count]) => ({
-            month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-            count,
-          })),
-        ddgByType: Object.entries(ddgByType).map(([name, value]) => ({ name, value })),
-      }
-    },
-  })
+// ─── AI analysis shape ─────────────────────────────────────────────────────────
+interface ReportAnalysis {
+  executiveSummary: string
+  partnershipInsight: string
+  meetingInsight: string
+  ddgInsight: string
+  bigPushInsight: string
+  recommendations: string[]
 }
 
-const REPORT_TYPES = [
-  {
-    title: 'Partnership Health Scorecard',
-    description: 'RAG-rated health assessment — meeting cadence, status progression and open DDG exposure per partnership.',
-    icon: Activity,
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-600',
-    btnClass: 'bg-amber-500 hover:bg-amber-600 text-white',
-    to: '/reports/executive',
-    countKey: 'totalPartnerships' as const,
-    countLabel: 'Partnerships',
-    count2Key: null,
-    count2Label: 'RAG Scorecard',
-  },
-  {
-    title: 'Pipeline & Progression',
-    description: 'Funnel distribution by status, average dwell time per stage, and longest-open partnerships.',
-    icon: Layers,
-    iconBg: 'bg-violet-50',
-    iconColor: 'text-violet-600',
-    btnClass: 'bg-violet-600 hover:bg-violet-700 text-white',
-    to: '/reports/pipeline',
-    countKey: 'totalPartnerships' as const,
-    countLabel: 'Partnerships',
-    count2Key: 'totalProposed' as const,
-    count2Label: 'Proposed Members',
-  },
-  {
-    title: 'Meeting Analytics',
-    description: 'Meeting frequency trends, cadence gaps by partnership, and most active partnerships last 90 days.',
-    icon: CalendarDays,
-    iconBg: 'bg-sky-50',
-    iconColor: 'text-sky-600',
-    btnClass: 'bg-sky-600 hover:bg-sky-700 text-white',
-    to: '/reports/meeting-analytics',
-    countKey: 'totalExtMeetings' as const,
-    countLabel: 'Ext. Meetings',
-    count2Key: 'totalIntMeetings' as const,
-    count2Label: 'Int. Meetings',
-  },
-  {
-    title: 'DDG Intelligence',
-    description: 'Feedback backlog, action rate, type breakdown, partnership attribution and monthly trends.',
-    icon: Inbox,
-    iconBg: 'bg-red-50',
-    iconColor: 'text-red-600',
-    btnClass: 'bg-red-500 hover:bg-red-600 text-white',
-    to: '/reports/ddg-intelligence',
-    countKey: 'totalDDG' as const,
-    countLabel: 'Total Items',
-    count2Key: 'pendingDDG' as const,
-    count2Label: 'Pending',
-  },
-  {
-    title: 'External Stakeholder Report',
-    description: 'Full activity report on external stakeholders — partnerships, meetings and engagement depth.',
-    icon: Building2,
-    iconBg: 'bg-orange-50',
-    iconColor: 'text-brand',
-    btnClass: 'bg-brand hover:bg-brand/90 text-white',
-    to: '/reports/external-stakeholder',
-    countKey: 'totalExtStakeholders' as const,
-    countLabel: 'Stakeholders',
-    count2Key: 'totalExtMeetings' as const,
-    count2Label: 'Meetings',
-  },
-  {
-    title: 'Internal Stakeholder Report',
-    description: 'Activity report for departments — partnerships participated in and internal engagement.',
-    icon: UserCheck,
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-600',
-    btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
-    to: '/reports/internal-stakeholder',
-    countKey: 'totalIntStakeholders' as const,
-    countLabel: 'Departments',
-    count2Key: 'totalIntMeetings' as const,
-    count2Label: 'Int. Meetings',
-  },
-  {
-    title: 'User Performance Report',
-    description: 'Activity and performance per user — records created, meetings logged, DDG submissions.',
-    icon: Users,
-    iconBg: 'bg-green-50',
-    iconColor: 'text-green-600',
-    btnClass: 'bg-green-600 hover:bg-green-700 text-white',
-    to: '/reports/user-performance',
-    countKey: null,
-    countLabel: 'Users',
-    count2Key: null,
-    count2Label: 'Full Audit Trail',
-  },
-  {
-    title: 'Status Time Analysis',
-    description: 'How long partnerships stay in each status — transition frequencies, bottlenecks and trends.',
-    icon: Clock,
-    iconBg: 'bg-zinc-100',
-    iconColor: 'text-zinc-600',
-    btnClass: 'bg-zinc-700 hover:bg-zinc-800 text-white',
-    to: '/reports/status-time',
-    countKey: null,
-    countLabel: 'Status History',
-    count2Key: null,
-    count2Label: 'Time Analysis',
-  },
+// ─── Drill-down links ──────────────────────────────────────────────────────────
+const DRILL_DOWNS = [
+  { title: 'Partnership Health Scorecard', desc: 'RAG status per partnership',     icon: Activity,    color: 'text-amber-600', bg: 'bg-amber-50',  to: '/reports/executive'           },
+  { title: 'Pipeline & Progression',       desc: 'Funnel stages and dwell time',   icon: Layers,      color: 'text-violet-600',bg: 'bg-violet-50', to: '/reports/pipeline'            },
+  { title: 'Meeting Analytics',            desc: 'Frequency, cadence, coverage',   icon: CalendarDays,color: 'text-sky-600',   bg: 'bg-sky-50',    to: '/reports/meeting-analytics'   },
+  { title: 'DDG Intelligence',             desc: 'Feedback backlog and trends',     icon: Inbox,       color: 'text-red-600',   bg: 'bg-red-50',    to: '/reports/ddg-intelligence'    },
+  { title: 'External Stakeholders',        desc: 'Stakeholder engagement depth',    icon: Building2,   color: 'text-brand',     bg: 'bg-orange-50', to: '/reports/external-stakeholder'},
+  { title: 'Internal Stakeholders',        desc: 'Department participation',        icon: UserCheck,   color: 'text-blue-600',  bg: 'bg-blue-50',   to: '/reports/internal-stakeholder'},
+  { title: 'User Performance',             desc: 'Activity per team member',        icon: Users,       color: 'text-green-600', bg: 'bg-green-50',  to: '/reports/user-performance'    },
+  { title: 'Status Time Analysis',         desc: 'Dwell time and transitions',      icon: Clock,       color: 'text-zinc-600',  bg: 'bg-zinc-100',  to: '/reports/status-time'         },
 ]
 
+// ─── AI insight strip ──────────────────────────────────────────────────────────
+function AIInsight({ text, loading }: { text?: string; loading?: boolean }) {
+  if (loading) return (
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-dashed border-zinc-100">
+      <Loader2 size={11} className="animate-spin text-brand shrink-0" />
+      <p className="text-xs text-zinc-400">Generating insight…</p>
+    </div>
+  )
+  if (!text) return null
+  return (
+    <div className="flex items-start gap-2 mt-3 pt-3 border-t border-dashed border-zinc-100">
+      <Sparkles size={11} className="text-brand mt-0.5 shrink-0" />
+      <p className="text-xs text-zinc-600 leading-relaxed italic">{text}</p>
+    </div>
+  )
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
 export function Reports() {
-  const { data, isLoading } = useReportData()
+  const { data: execData  } = useExecutiveReport()
+  const { data: ragData   } = useHealthScorecardReport()
+  const { data: analytics } = useMeetingAnalyticsReport()
+  const { data: ddgData   } = useDDGIntelligenceReport()
+  const { data: projects  = [] } = useDataWarehouse()
+  const { data: activities = [] } = useProjectActivities()
   const { data: settings } = useSettings()
 
-  const bestPct = Number(settings?.best_case_pct ?? 60)
+  const { summary, isGenerating, error, generate, reset } = useAISummary()
+  const [analysis, setAnalysis] = useState<ReportAnalysis | null>(null)
+  const [pdfGenerating, setPdfGenerating] = useState(false)
+  const printRef      = useRef<HTMLDivElement>(null)
+  const autoGenerated = useRef(false)
+
+  const bestPct  = Number(settings?.best_case_pct  ?? 60)
   const worstPct = Number(settings?.worst_case_pct ?? 30)
-  const totalProposed = data?.totalProposed ?? 0
+
+  // Big Push totals
+  const bigPush = useMemo(() => {
+    const sums = buildActivitySummaries(activities)
+    let totalActivity = 0
+    for (const p of projects) {
+      const s = sums[p.id]
+      totalActivity += (s?.registration?.value ?? 0) + (s?.payment?.value ?? 0) + (s?.inspection?.value ?? 0)
+    }
+    return {
+      totalProjects: projects.length,
+      contractors: new Set(projects.map(p => p.contractor).filter(Boolean)).size,
+      totalActivity,
+    }
+  }, [projects, activities])
+
+  // Meetings this month — last entry in monthly trend
+  const meetingsThisMonth = useMemo(() => {
+    const last = analytics?.monthlyTrend?.at(-1)
+    return last ? ((last.External ?? 0) + (last.Internal ?? 0)) : 0
+  }, [analytics])
+
+  const dataReady = !!(execData && ragData && analytics && ddgData)
+
+  // Build structured AI prompt
+  function buildPrompt() {
+    const statusLines = (execData?.valueByStatus ?? [])
+      .map(s => `    ${s.name}: GHS ${s.value.toLocaleString()}`)
+      .join('\n')
+
+    return `Analyze this SSNIT Strategic Business Support data. Return ONLY a valid JSON object — no markdown, no code fences, no text before or after the JSON.
+
+Return exactly this structure:
+{
+  "executiveSummary": "3-4 sentences covering overall portfolio health, the most critical concern, and top positive",
+  "partnershipInsight": "2 sentences on pipeline value distribution and RAG health",
+  "meetingInsight": "2 sentences on meeting engagement frequency and partnership coverage",
+  "ddgInsight": "2 sentences on DDG feedback action rate and urgency of pending items",
+  "bigPushInsight": "1-2 sentences on Big Push programme activity and coverage",
+  "recommendations": ["specific action with cited figure", "specific action with cited figure", "specific action with cited figure"]
+}
+
+Write in formal executive language. Cite specific numbers. No filler phrases.
+
+DATA:
+PARTNERSHIPS: ${execData?.rows.length ?? 0} total
+  Pipeline Value (GHS): ${(execData?.totalProposed ?? 0).toLocaleString()}
+  Best Case (${bestPct}%): GHS ${Math.round((execData?.totalProposed ?? 0) * bestPct / 100).toLocaleString()}
+  Worst Case (${worstPct}%): GHS ${Math.round((execData?.totalProposed ?? 0) * worstPct / 100).toLocaleString()}
+  Value by Stage:
+${statusLines || '    (no stage data)'}
+  RAG Health: ${ragData?.redCount ?? 0} Red (immediate action), ${ragData?.amberCount ?? 0} Amber (monitor), ${ragData?.greenCount ?? 0} Green (healthy)
+
+MEETINGS: ${analytics?.totalMeetings ?? 0} total (${analytics?.totalExt ?? 0} external, ${analytics?.totalInt ?? 0} internal)
+  This month: ${meetingsThisMonth} | Avg per partnership: ${analytics?.avgMeetingsPerPartnership ?? 0}
+  Partnerships with no meeting in 30+ days: ${analytics?.pctNoMeeting30d ?? 0}%
+
+DDG FEEDBACK: ${ddgData?.total ?? 0} total | ${ddgData?.pending ?? 0} pending | ${ddgData?.actionRate ?? 0}% action rate
+
+BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} contractors | Total activity recorded: ${bigPush.totalActivity.toLocaleString()}`
+  }
+
+  // Parse AI text response as JSON
+  useEffect(() => {
+    if (!summary) return
+    try {
+      const cleaned = summary.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim()
+      const parsed = JSON.parse(cleaned) as ReportAnalysis
+      if (parsed.executiveSummary) setAnalysis(parsed)
+    } catch {
+      // Fallback: treat as plain text executive summary
+      setAnalysis({ executiveSummary: summary, partnershipInsight: '', meetingInsight: '', ddgInsight: '', bigPushInsight: '', recommendations: [] })
+    }
+  }, [summary])
+
+  // Auto-generate when all data first loads
+  useEffect(() => {
+    if (dataReady && !autoGenerated.current && !isGenerating && !analysis) {
+      autoGenerated.current = true
+      generate(buildPrompt())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataReady])
+
+  function handleRegenerate() {
+    reset()
+    setAnalysis(null)
+    generate(buildPrompt())
+  }
+
+  async function handleDownloadPdf() {
+    if (!printRef.current) return
+    setPdfGenerating(true)
+    try { await generatePdf(printRef.current, 'SSNIT SBS Executive Report') }
+    finally { setPdfGenerating(false) }
+  }
+
+  // RAG donut data
+  const ragPie = [
+    { name: 'Healthy',   value: ragData?.greenCount ?? 0, color: GREEN },
+    { name: 'Attention', value: ragData?.amberCount ?? 0, color: AMBER },
+    { name: 'At Risk',   value: ragData?.redCount   ?? 0, color: RED   },
+  ].filter(d => d.value > 0)
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <PageHeader
-        title="Executive Reports"
-        subtitle="Select the type of report to generate"
-      />
+    <div className="space-y-6 pb-10">
 
-      {/* Report type cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-3">
-        {REPORT_TYPES.map(rt => {
-          const Icon = rt.icon
-          const c1 = rt.countKey && data ? data[rt.countKey] : null
-          const c2 = rt.count2Key && data ? data[rt.count2Key] : null
-          return (
-            <div
-              key={rt.title}
-              className="rounded-xl border bg-card p-5 flex flex-col gap-3 hover:shadow-md transition-shadow"
-            >
-              <div className={`h-11 w-11 rounded-full flex items-center justify-center ${rt.iconBg}`}>
-                <Icon className={`h-5 w-5 ${rt.iconColor}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold mb-1">{rt.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{rt.description}</p>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {c1 !== null && (
-                  <span className="text-xs border rounded px-2 py-0.5 bg-muted/40">
-                    {formatNumber(c1 as number)} {rt.countLabel}
-                  </span>
-                )}
-                {rt.countKey === null && (
-                  <span className="text-xs border rounded px-2 py-0.5 bg-muted/40">{rt.countLabel}</span>
-                )}
-                {c2 !== null && (
-                  <span className="text-xs border rounded px-2 py-0.5 bg-muted/40">
-                    {formatNumber(c2 as number)} {rt.count2Label}
-                  </span>
-                )}
-                {rt.count2Key === null && (
-                  <span className="text-xs border rounded px-2 py-0.5 bg-muted/40">{rt.count2Label}</span>
-                )}
-              </div>
-              <Button asChild size="sm" className={`w-full ${rt.btnClass}`}>
-                <Link to={rt.to}>
-                  Generate Report <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                </Link>
-              </Button>
-            </div>
-          )
-        })}
+      {/* ── Page header ── */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-zinc-900">Executive Report</h1>
+          <p className="text-sm text-zinc-400 mt-0.5 flex items-center gap-1.5">
+            <Sparkles size={12} className="text-brand" />
+            AI-powered · {today}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRegenerate}
+            disabled={!dataReady || isGenerating} className="gap-1.5 h-8 text-xs">
+            {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Regenerate
+          </Button>
+          <Button size="sm" onClick={handleDownloadPdf} disabled={pdfGenerating} className="gap-1.5 h-8 text-xs">
+            {pdfGenerating ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            Download PDF
+          </Button>
+        </div>
       </div>
 
-      {/* Quick overview KPIs */}
-      <Card>
-        <CardHeader className="py-3 px-5">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            Quick Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
-            {[
-              { label: 'Partnerships', value: data?.totalPartnerships ?? 0, color: 'text-brand' },
-              { label: 'Ext. Stakeholders', value: data?.totalExtStakeholders ?? 0, color: 'text-foreground' },
-              { label: 'Ext. Meetings', value: data?.totalExtMeetings ?? 0, color: 'text-foreground' },
-              { label: 'Int. Meetings', value: data?.totalIntMeetings ?? 0, color: 'text-foreground' },
-              { label: 'DDG Feedback', value: data?.totalDDG ?? 0, color: 'text-foreground' },
-              { label: 'Pending DDG', value: data?.pendingDDG ?? 0, color: 'text-red-500' },
-            ].map(item => (
-              <div key={item.label}>
-                {isLoading ? (
-                  <Skeleton className="h-10 mx-auto w-16" />
-                ) : (
-                  <>
-                    <p className={`text-2xl font-semibold tabular-nums ${item.color}`}>{item.value}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
-                  </>
+      {/* ══════════════════════════════════════════════════════════════
+          PRINTABLE AREA
+      ══════════════════════════════════════════════════════════════ */}
+      <div ref={printRef} className="space-y-6">
+
+        {/* ── AI Executive Summary ── */}
+        <Card className={`overflow-hidden border-orange-100 ${analysis ? 'bg-orange-50/20' : ''}`}>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-md bg-brand flex items-center justify-center shrink-0">
+                <Sparkles size={13} className="text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-800 leading-none">AI Executive Summary</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5">Generated by Claude · SSNIT Strategic Business Support</p>
+              </div>
+              {isGenerating && <Loader2 size={13} className="animate-spin text-brand ml-auto" />}
+            </div>
+
+            {isGenerating && !analysis && (
+              <div className="space-y-2.5">
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-11/12" />
+                <Skeleton className="h-3.5 w-4/5" />
+                <Skeleton className="h-3.5 w-10/12 mt-3" />
+              </div>
+            )}
+
+            {error && !isGenerating && (
+              <p className="text-xs text-red-500 leading-relaxed">{error}</p>
+            )}
+
+            {!analysis && !isGenerating && !error && (
+              <p className="text-xs text-zinc-400">Loading data before generating analysis…</p>
+            )}
+
+            {analysis && (
+              <div className="space-y-4">
+                <p className="text-sm text-zinc-700 leading-relaxed">{analysis.executiveSummary}</p>
+                {analysis.recommendations.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2.5">Recommendations</p>
+                    <ul className="space-y-2">
+                      {analysis.recommendations.map((r, i) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm text-zinc-700">
+                          <span className="w-5 h-5 rounded-full bg-brand/10 text-brand text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Pipeline projections — raw member counts, NOT currency */}
-      <Card>
-        <CardHeader className="py-3 px-5">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-brand" />
-            Pipeline Projections (2025 – 2028)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          {isLoading ? (
-            <div className="grid grid-cols-3 gap-4">
-              <Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" />
+        {/* ── 4 Hero KPIs ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            {
+              label: 'Total Pipeline Value',
+              value: execData?.totalProposed != null ? formatNumber(execData.totalProposed) : '—',
+              sub: execData ? `best case: ${formatNumber(calcProjection(execData.totalProposed, bestPct))}` : 'loading…',
+              icon: <DollarSign size={18} />, color: 'text-brand', bg: 'bg-orange-50',
+            },
+            {
+              label: 'Active Partnerships',
+              value: execData?.rows.length ?? '—',
+              sub: ragData ? `${ragData.redCount} at-risk · ${ragData.amberCount} watch` : 'loading…',
+              icon: <Handshake size={18} />, color: 'text-brand', bg: 'bg-orange-50',
+            },
+            {
+              label: 'Total Meetings',
+              value: analytics?.totalMeetings ?? '—',
+              sub: analytics ? `${analytics.totalExt} external · ${analytics.totalInt} internal` : 'loading…',
+              icon: <CalendarDays size={18} />, color: 'text-green-600', bg: 'bg-green-50',
+            },
+            {
+              label: 'Pending DDG Items',
+              value: ddgData?.pending ?? '—',
+              sub: ddgData ? `${ddgData.actionRate}% action rate · ${ddgData.total} total` : 'loading…',
+              icon: <MessageSquare size={18} />,
+              color: (ddgData?.pending ?? 0) > 0 ? 'text-red-500' : 'text-green-600',
+              bg:    (ddgData?.pending ?? 0) > 0 ? 'bg-red-50'   : 'bg-green-50',
+            },
+          ].map(k => (
+            <div key={k.label} className="rounded-xl border bg-white p-4 sm:p-5 flex items-start gap-3.5">
+              <div className={`rounded-lg ${k.bg} p-2.5 shrink-0`}>
+                <div className={k.color}>{k.icon}</div>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide">{k.label}</p>
+                <p className="text-2xl font-bold text-zinc-900 tabular-nums leading-tight mt-0.5">{k.value}</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{k.sub}</p>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                { label: 'Proposed Members', amount: totalProposed, sub: '100% of pipeline', color: 'text-foreground' },
-                { label: `Best Case (${bestPct}%)`, amount: calcProjection(totalProposed, bestPct), sub: `${bestPct}% realisation`, color: 'text-green-600' },
-                { label: `Worst Case (${worstPct}%)`, amount: calcProjection(totalProposed, worstPct), sub: `${worstPct}% realisation`, color: 'text-amber-600' },
-              ].map(item => (
-                <div key={item.label} className="p-4 rounded-lg border bg-zinc-50/60">
-                  <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
-                  <p className={`mt-1 text-2xl font-semibold tabular-nums ${item.color}`}>
-                    {formatNumber(item.amount)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{item.sub}</p>
+          ))}
+        </div>
+
+        {/* ── Pipeline by Stage + Partnership Health ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <Card className="lg:col-span-3 overflow-hidden">
+            <CardHeader className="py-3 px-5 border-b">
+              <CardTitle className="text-sm font-semibold">Pipeline by Stage</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Proposed value (GHS) per partnership stage</p>
+            </CardHeader>
+            <CardContent className="p-4">
+              {execData?.valueByStatus?.length ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={execData.valueByStatus} layout="vertical" margin={{ left: 4, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false}
+                      tickFormatter={v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v)}
+                    />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
+                    <Tooltip {...TIP} formatter={(v: number) => [formatNumber(v), 'Value']} />
+                    <Bar dataKey="value" fill={BRAND} radius={[0, 4, 4, 0]} name="Value" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-sm text-zinc-400">No pipeline data</div>
+              )}
+              {/* Projection strip */}
+              {execData?.totalProposed != null && (
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3">
+                  {[
+                    { label: 'Full Pipeline',              value: execData.totalProposed,                              color: 'text-zinc-800'  },
+                    { label: `Best Case (${bestPct}%)`,    value: calcProjection(execData.totalProposed, bestPct),     color: 'text-green-600' },
+                    { label: `Worst Case (${worstPct}%)`,  value: calcProjection(execData.totalProposed, worstPct),    color: 'text-amber-600' },
+                  ].map(p => (
+                    <div key={p.label} className="text-center">
+                      <p className={`text-sm font-bold tabular-nums ${p.color}`}>{formatNumber(p.value)}</p>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">{p.label}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+              <AIInsight text={analysis?.partnershipInsight} loading={isGenerating && !analysis} />
+            </CardContent>
+          </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Meetings over time */}
-        <Card>
-          <CardHeader className="py-3 px-5">
-            <CardTitle className="text-sm font-semibold">Meetings Over Time</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {isLoading ? <Skeleton className="h-52" /> : data?.meetingsByMonth.length ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.meetingsByMonth} barSize={18}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e4e4e7' }} cursor={{ fill: '#f4f4f5' }} />
-                  <Bar dataKey="count" fill="#E8621A" radius={[4, 4, 0, 0]} name="Meetings" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">No data</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Partnerships by status */}
-        <Card>
-          <CardHeader className="py-3 px-5">
-            <CardTitle className="text-sm font-semibold">Partnerships by Status</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {isLoading ? <Skeleton className="h-52" /> : data?.partnershipsByStatus.length ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={data.partnershipsByStatus} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={3}>
-                    {data.partnershipsByStatus.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+          <Card className="lg:col-span-2 overflow-hidden">
+            <CardHeader className="py-3 px-5 border-b">
+              <CardTitle className="text-sm font-semibold">Partnership Health</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">RAG status distribution</p>
+            </CardHeader>
+            <CardContent className="p-4">
+              {ragPie.length ? (
+                <>
+                  <div className="relative" style={{ height: 160 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={ragPie} cx="50%" cy="50%" innerRadius={48} outerRadius={72}
+                          paddingAngle={2} dataKey="value" strokeWidth={0}>
+                          {ragPie.map((e, i) => <Cell key={i} fill={e.color} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-zinc-900">{ragData?.total ?? 0}</p>
+                        <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Total</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 mt-2">
+                    {[
+                      { label: 'Healthy',   count: ragData?.greenCount ?? 0, bg: 'bg-green-50', text: 'text-green-700', dot: GREEN },
+                      { label: 'Attention', count: ragData?.amberCount ?? 0, bg: 'bg-amber-50', text: 'text-amber-700', dot: AMBER },
+                      { label: 'At Risk',   count: ragData?.redCount   ?? 0, bg: 'bg-red-50',   text: 'text-red-700',   dot: RED   },
+                    ].map(r => (
+                      <div key={r.label} className={`flex items-center justify-between rounded-lg px-3 py-1.5 ${r.bg}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: r.dot }} />
+                          <span className={`text-xs font-medium ${r.text}`}>{r.label}</span>
+                        </div>
+                        <span className={`text-xs font-bold tabular-nums ${r.text}`}>{r.count}</span>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-52 text-sm text-zinc-400">No data</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Meeting Activity ── */}
+        <Card className="overflow-hidden">
+          <CardHeader className="py-3 px-5 border-b flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold">Meeting Activity — Last 12 Months</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">External and internal meetings per month</p>
+            </div>
+            <Link to="/reports/meeting-analytics" className="text-xs text-brand hover:underline flex items-center gap-0.5 shrink-0">
+              Full report <ChevronRight size={12} />
+            </Link>
+          </CardHeader>
+          <CardContent className="p-4">
+            {analytics?.monthlyTrend?.length ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={analytics.monthlyTrend} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gExt" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={BRAND}  stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={BRAND}  stopOpacity={0}    />
+                    </linearGradient>
+                    <linearGradient id="gInt" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={INDIGO} stopOpacity={0.2}  />
+                      <stop offset="95%" stopColor={INDIGO} stopOpacity={0}    />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip {...TIP} />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                  <Area type="monotone" dataKey="External" stroke={BRAND}  fill="url(#gExt)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="Internal" stroke={INDIGO} fill="url(#gInt)" strokeWidth={2} dot={false} />
+                </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">No data</div>
+              <div className="flex items-center justify-center h-48 text-sm text-zinc-400">No meeting data</div>
             )}
+            <AIInsight text={analysis?.meetingInsight} loading={isGenerating && !analysis} />
           </CardContent>
         </Card>
 
-        {/* DDG by type */}
-        <Card>
-          <CardHeader className="py-3 px-5">
-            <CardTitle className="text-sm font-semibold">DDG Feedback by Type</CardTitle>
+        {/* ── DDG Intelligence ── */}
+        <Card className="overflow-hidden">
+          <CardHeader className="py-3 px-5 border-b flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold">DDG Feedback Intelligence</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Action rate, type breakdown and backlog</p>
+            </div>
+            <Link to="/reports/ddg-intelligence" className="text-xs text-brand hover:underline flex items-center gap-0.5 shrink-0">
+              Full report <ChevronRight size={12} />
+            </Link>
           </CardHeader>
-          <CardContent className="pt-0">
-            {isLoading ? <Skeleton className="h-52" /> : data?.ddgByType.length ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.ddgByType} layout="vertical" barSize={16}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e4e4e7' }} />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Count" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">No data</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* DDG action rate */}
-        <Card>
-          <CardHeader className="py-3 px-5">
-            <CardTitle className="text-sm font-semibold">DDG Action Rate</CardTitle>
-          </CardHeader>
-          <CardContent className="p-5">
-            {isLoading ? <Skeleton className="h-52" /> : (
-              <div className="flex flex-col items-center justify-center h-[188px] gap-2">
-                {data && data.totalDDG > 0 ? (
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
+              {/* Action rate circle */}
+              <div className="flex flex-col items-center justify-center gap-2">
+                {ddgData && ddgData.total > 0 ? (
                   <>
-                    <div className="relative flex h-32 w-32 items-center justify-center">
-                      <svg className="rotate-[-90deg]" viewBox="0 0 120 120" width="128" height="128">
+                    <div className="relative flex h-28 w-28 items-center justify-center">
+                      <svg className="rotate-[-90deg]" viewBox="0 0 120 120" width="112" height="112">
                         <circle cx="60" cy="60" r="50" fill="none" stroke="#f4f4f5" strokeWidth="12" />
-                        <circle
-                          cx="60" cy="60" r="50" fill="none" stroke="#10b981" strokeWidth="12"
+                        <circle cx="60" cy="60" r="50" fill="none" stroke={GREEN} strokeWidth="12"
                           strokeDasharray={`${2 * Math.PI * 50}`}
-                          strokeDashoffset={`${2 * Math.PI * 50 * (1 - (data.totalDDG - data.pendingDDG) / data.totalDDG)}`}
+                          strokeDashoffset={`${2 * Math.PI * 50 * (1 - ddgData.actionRate / 100)}`}
                           strokeLinecap="round"
                         />
                       </svg>
                       <div className="absolute text-center">
-                        <p className="text-2xl font-semibold tabular-nums">
-                          {Math.round(((data.totalDDG - data.pendingDDG) / data.totalDDG) * 100)}%
-                        </p>
-                        <p className="text-xs text-muted-foreground">actioned</p>
+                        <p className="text-2xl font-bold tabular-nums">{ddgData.actionRate}%</p>
+                        <p className="text-[10px] text-zinc-400">actioned</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
-                        {data.totalDDG - data.pendingDDG} actioned
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
-                        {data.pendingDDG} pending
-                      </span>
+                    <div className="flex gap-3 text-xs text-zinc-500">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{ddgData.actioned} done</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{ddgData.pending} pending</span>
                     </div>
                   </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No feedback recorded</p>
-                )}
+                ) : <p className="text-sm text-zinc-400 text-center">No feedback recorded</p>}
               </div>
-            )}
+              {/* By type stacked bar */}
+              <div className="lg:col-span-2">
+                {ddgData?.byType?.length ? (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={ddgData.byType.slice(0, 6)} layout="vertical" margin={{ left: 4, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={90} />
+                      <Tooltip {...TIP} />
+                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+                      <Bar dataKey="Actioned" stackId="a" fill={GREEN} radius={[0, 0, 0, 0]} barSize={14} name="Actioned" />
+                      <Bar dataKey="Pending"  stackId="a" fill={AMBER} radius={[0, 3, 3, 0]} barSize={14} name="Pending"  />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <div className="flex items-center justify-center h-40 text-sm text-zinc-400">No type data</div>}
+              </div>
+            </div>
+            <AIInsight text={analysis?.ddgInsight} loading={isGenerating && !analysis} />
           </CardContent>
         </Card>
-      </div>
+
+        {/* ── Big Push strip ── */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 px-5 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <HardHat className="h-4 w-4 text-brand" />
+              <p className="text-sm font-semibold text-zinc-800">Big Push Infrastructure Programme</p>
+            </div>
+            <Link to="/data-warehouse" className="text-xs text-brand hover:underline flex items-center gap-0.5">
+              Data Warehouse <ChevronRight size={12} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-orange-100">
+            {[
+              { label: 'Projects',       value: bigPush.totalProjects,                    icon: <HardHat    size={16} className="text-brand" /> },
+              { label: 'Contractors',    value: bigPush.contractors,                      icon: <Users      size={16} className="text-brand" /> },
+              { label: 'Total Activity', value: bigPush.totalActivity.toLocaleString(),   icon: <TrendingUp size={16} className="text-brand" /> },
+            ].map(s => (
+              <div key={s.label} className="px-4 first:pl-0 last:pr-0 flex items-center gap-3">
+                <div className="rounded-lg bg-white border border-orange-100 p-2 shrink-0">{s.icon}</div>
+                <div>
+                  <p className="text-xl font-bold text-zinc-900 tabular-nums leading-none">{s.value}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <AIInsight text={analysis?.bigPushInsight} loading={isGenerating && !analysis} />
+        </div>
+
+        {/* ── Drill-down reports ── */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-3">Detailed Reports</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {DRILL_DOWNS.map(r => {
+              const Icon = r.icon
+              return (
+                <Link key={r.to} to={r.to}
+                  className="rounded-xl border bg-white p-3.5 hover:shadow-sm hover:border-zinc-300 transition-all group">
+                  <div className={`w-8 h-8 rounded-lg ${r.bg} flex items-center justify-center mb-2.5`}>
+                    <Icon size={15} className={r.color} />
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-800 group-hover:text-brand transition-colors leading-snug">{r.title}</p>
+                  <p className="text-[10px] text-zinc-400 mt-0.5 leading-snug">{r.desc}</p>
+                  <div className="flex items-center gap-0.5 mt-2 text-[10px] text-brand font-medium">
+                    View <ChevronRight size={10} />
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
+      </div>{/* end printRef */}
     </div>
   )
 }
