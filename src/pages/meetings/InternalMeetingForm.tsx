@@ -26,6 +26,7 @@ const schema = z.object({
   partnership_id: z.string().optional(),
   meeting_date: z.string().optional(),
   location: z.string().optional(),
+  attendees_internal: z.string().optional(),
   agenda: z.string().optional(),
   minutes: z.string().optional(),
   action_points: z.string().optional(),
@@ -55,6 +56,7 @@ export function InternalMeetingForm() {
         partnership_id: (m.partnership_id as string) ?? '',
         meeting_date: (m.meeting_date as string) ?? '',
         location: (m.location as string) ?? '',
+        attendees_internal: (m.attendees_internal as string) ?? '',
         agenda: (m.agenda as string) ?? '',
         minutes: (m.minutes as string) ?? '',
         action_points: (m.action_points as string) ?? '',
@@ -169,6 +171,15 @@ export function InternalMeetingForm() {
                 )} />
               </div>
 
+              <FormField control={form.control} name="attendees_internal" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Attendees</FormLabel>
+                  <FormControl><Textarea placeholder="One attendee per line — Name, Department, Position" rows={3} {...field} /></FormControl>
+                  <p className="text-xs text-muted-foreground">One attendee per line — Name, Department, Position</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
               <FormField control={form.control} name="agenda" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Agenda</FormLabel>
@@ -234,6 +245,7 @@ export function InternalMeetingForm() {
           { label: 'Partnership', value: partnershipName(values.partnership_id) },
           { label: 'Date', value: values.meeting_date },
           { label: 'Location', value: values.location },
+          { label: 'Attendees', value: values.attendees_internal },
           { label: 'Agenda', value: values.agenda },
           { label: 'Minutes', value: values.minutes },
           { label: 'Action Points', value: values.action_points },

@@ -144,6 +144,7 @@ export function InternalMeetingView() {
             <Field label="Partnership" value={partnership ? <Link to={`/partnerships/${partnership.id}`} className="text-brand hover:underline">{partnership.title}</Link> : null} />
             <Field label="Date" value={m.meeting_date ? formatDate(m.meeting_date as string) : null} />
             <Field label="Location" value={m.location as string} />
+            <Field label="Attendees" value={m.attendees_internal as string} />
           </dl>
         </CardContent>
       </Card>
