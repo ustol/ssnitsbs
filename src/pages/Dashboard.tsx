@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Handshake, CalendarCheck, MessageSquare, ArrowRight, Clock,
-  AlertTriangle, HardHat, DollarSign, Users, TrendingUp, Eye, ListChecks, XCircle,
+  Handshake, CalendarCheck, ArrowRight, Clock,
+  HardHat, DollarSign, Users, TrendingUp, Eye, ListChecks, XCircle,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -47,7 +47,7 @@ function useDashboardStats() {
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-      const [partnerships, extMeetings, intMeetings, ddg, extThisMonth, intThisMonth] = await Promise.all([
+      const [partnerships, extMeetings, intMeetings, extThisMonth, intThisMonth] = await Promise.all([
         supabase.from('partnerships').select(
           `id, title, proposed_value, created_at,
            status:status_lookup(name, color),
@@ -56,7 +56,6 @@ function useDashboardStats() {
         ),
         supabase.from('external_meetings').select('id', { count: 'exact' }),
         supabase.from('internal_meetings').select('id', { count: 'exact' }),
-        supabase.from('ddg_feedback').select('id, is_actioned', { count: 'exact' }),
         supabase.from('external_meetings').select('id', { count: 'exact' }).gte('meeting_date', monthStart),
         supabase.from('internal_meetings').select('id', { count: 'exact' }).gte('meeting_date', monthStart),
       ])
@@ -66,7 +65,6 @@ function useDashboardStats() {
         totalExtMeetings: extMeetings.count ?? 0,
         totalIntMeetings: intMeetings.count ?? 0,
         meetingsThisMonth: (extThisMonth.count ?? 0) + (intThisMonth.count ?? 0),
-        pendingDDG: (ddg.data ?? []).filter((r: { is_actioned: boolean }) => !r.is_actioned).length,
         recentPartnerships: ((partnerships.data ?? []) as unknown as RecentPartnership[]).slice(0, 6),
       }
     },
@@ -218,45 +216,29 @@ export function Dashboard() {
           loading={statsLoading}
         />
         <HeroKPI
-          label="Pending Actions"
-          value={((stats?.pendingDDG ?? 0) + (apStats?.pending ?? 0)) || '—'}
-          sub={`${stats?.pendingDDG ?? 0} DDG · ${apStats?.pending ?? 0} action points`}
+          label="Pending Action Points"
+          value={apStats?.pending ?? '—'}
+          sub={apStats ? `${apStats.done} done · ${apStats.failed} failed` : 'loading…'}
           icon={<ListChecks className="h-5 w-5" />}
-          accent={(stats?.pendingDDG ?? 0) + (apStats?.pending ?? 0) > 0 ? 'danger' : 'success'}
-          loading={statsLoading && !apStats}
+          accent={(apStats?.pending ?? 0) > 0 ? 'danger' : 'success'}
+          loading={!apStats}
         />
       </div>
 
       {/* ══════════════════════════════════════════════════════════════
           ZONE 2 — Attention alerts
       ══════════════════════════════════════════════════════════════ */}
-      {((stats?.pendingDDG ?? 0) > 0 || (apStats?.failed ?? 0) > 0) && (
-        <div className="space-y-2">
-          {(stats?.pendingDDG ?? 0) > 0 && (
-            <Link
-              to="/feedback/ddg"
-              className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors group"
-            >
-              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-              <p className="text-sm font-medium text-red-700 flex-1">
-                {stats!.pendingDDG} DDG comment{stats!.pendingDDG > 1 ? 's' : ''} pending action
-              </p>
-              <ArrowRight className="h-4 w-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          )}
-          {(apStats?.failed ?? 0) > 0 && (
-            <Link
-              to="/action-points"
-              className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100 transition-colors group"
-            >
-              <XCircle className="h-4 w-4 text-orange-500 shrink-0" />
-              <p className="text-sm font-medium text-orange-700 flex-1">
-                {apStats!.failed} action point{apStats!.failed > 1 ? 's' : ''} marked as failed
-              </p>
-              <ArrowRight className="h-4 w-4 text-orange-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          )}
-        </div>
+      {(apStats?.failed ?? 0) > 0 && (
+        <Link
+          to="/action-points"
+          className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors group"
+        >
+          <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+          <p className="text-sm font-medium text-red-700 flex-1">
+            {apStats!.failed} action point{apStats!.failed > 1 ? 's' : ''} marked as failed
+          </p>
+          <ArrowRight className="h-4 w-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
       )}
 
       {/* ══════════════════════════════════════════════════════════════

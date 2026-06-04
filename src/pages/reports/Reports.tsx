@@ -1,15 +1,14 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Sparkles, Download, Loader2, Activity, Layers, CalendarDays, Inbox,
+  Sparkles, Download, Loader2, Activity, Layers, CalendarDays,
   Building2, UserCheck, Users, Clock, ChevronRight, DollarSign,
-  Handshake, MessageSquare, HardHat, TrendingUp, RefreshCw,
+  Handshake, HardHat, TrendingUp, RefreshCw, ListChecks,
 } from 'lucide-react'
 import {
   useExecutiveReport,
   useHealthScorecardReport,
   useMeetingAnalyticsReport,
-  useDDGIntelligenceReport,
 } from '@/hooks/useReports'
 import { useDataWarehouse, useProjectActivities, buildActivitySummaries } from '@/hooks/useDataWarehouse'
 import { useActionPointStats } from '@/hooks/useActionPoints'
@@ -38,7 +37,6 @@ interface ReportAnalysis {
   executiveSummary: string
   partnershipInsight: string
   meetingInsight: string
-  ddgInsight: string
   bigPushInsight: string
   actionPointInsight: string
   recommendations: string[]
@@ -49,7 +47,6 @@ const DRILL_DOWNS = [
   { title: 'Partnership Health Scorecard', desc: 'RAG status per partnership',     icon: Activity,    color: 'text-amber-600', bg: 'bg-amber-50',  to: '/reports/executive'           },
   { title: 'Pipeline & Progression',       desc: 'Funnel stages and dwell time',   icon: Layers,      color: 'text-violet-600',bg: 'bg-violet-50', to: '/reports/pipeline'            },
   { title: 'Meeting Analytics',            desc: 'Frequency, cadence, coverage',   icon: CalendarDays,color: 'text-sky-600',   bg: 'bg-sky-50',    to: '/reports/meeting-analytics'   },
-  { title: 'DDG Intelligence',             desc: 'Feedback backlog and trends',     icon: Inbox,       color: 'text-red-600',   bg: 'bg-red-50',    to: '/reports/ddg-intelligence'    },
   { title: 'External Stakeholders',        desc: 'Stakeholder engagement depth',    icon: Building2,   color: 'text-brand',     bg: 'bg-orange-50', to: '/reports/external-stakeholder'},
   { title: 'Internal Stakeholders',        desc: 'Department participation',        icon: UserCheck,   color: 'text-blue-600',  bg: 'bg-blue-50',   to: '/reports/internal-stakeholder'},
   { title: 'User Performance',             desc: 'Activity per team member',        icon: Users,       color: 'text-green-600', bg: 'bg-green-50',  to: '/reports/user-performance'    },
@@ -78,7 +75,6 @@ export function Reports() {
   const { data: execData  } = useExecutiveReport()
   const { data: ragData   } = useHealthScorecardReport()
   const { data: analytics } = useMeetingAnalyticsReport()
-  const { data: ddgData   } = useDDGIntelligenceReport()
   const { data: projects  = [] } = useDataWarehouse()
   const { data: activities = [] } = useProjectActivities()
   const { data: settings } = useSettings()
@@ -114,7 +110,7 @@ export function Reports() {
     return last ? ((last.External ?? 0) + (last.Internal ?? 0)) : 0
   }, [analytics])
 
-  const dataReady = !!(execData && ragData && analytics && ddgData && apStats)
+  const dataReady = !!(execData && ragData && analytics && apStats)
 
   // Build structured AI prompt
   function buildPrompt() {
@@ -129,7 +125,6 @@ Return exactly this structure:
   "executiveSummary": "3-4 sentences covering overall portfolio health, the most critical concern, and top positive",
   "partnershipInsight": "2 sentences on pipeline value distribution and RAG health",
   "meetingInsight": "2 sentences on meeting engagement frequency and partnership coverage",
-  "ddgInsight": "2 sentences on DDG feedback action rate and urgency of pending items",
   "bigPushInsight": "1-2 sentences on Big Push programme activity and coverage",
   "actionPointInsight": "2 sentences on action point completion rate and any failed items requiring attention",
   "recommendations": ["specific action with cited figure", "specific action with cited figure", "specific action with cited figure"]
@@ -150,8 +145,6 @@ MEETINGS: ${analytics?.totalMeetings ?? 0} total (${analytics?.totalExt ?? 0} ex
   This month: ${meetingsThisMonth} | Avg per partnership: ${analytics?.avgMeetingsPerPartnership ?? 0}
   Partnerships with no meeting in 30+ days: ${analytics?.pctNoMeeting30d ?? 0}%
 
-DDG FEEDBACK: ${ddgData?.total ?? 0} total | ${ddgData?.pending ?? 0} pending | ${ddgData?.actionRate ?? 0}% action rate
-
 ACTION POINTS: ${apStats?.total ?? 0} total | ${apStats?.pending ?? 0} pending | ${apStats?.done ?? 0} done | ${apStats?.failed ?? 0} failed
   Completion rate: ${apStats?.total ? Math.round(((apStats.done) / apStats.total) * 100) : 0}%
 
@@ -167,7 +160,7 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
       if (parsed.executiveSummary) setAnalysis(parsed)
     } catch {
       // Fallback: treat as plain text executive summary
-      setAnalysis({ executiveSummary: summary, partnershipInsight: '', meetingInsight: '', ddgInsight: '', bigPushInsight: '', recommendations: [] })
+      setAnalysis({ executiveSummary: summary, partnershipInsight: '', meetingInsight: '', bigPushInsight: '', actionPointInsight: '', recommendations: [] })
     }
   }, [summary])
 
@@ -306,12 +299,12 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               icon: <CalendarDays size={18} />, color: 'text-green-600', bg: 'bg-green-50',
             },
             {
-              label: 'Pending DDG Items',
-              value: ddgData?.pending ?? '—',
-              sub: ddgData ? `${ddgData.actionRate}% action rate · ${ddgData.total} total` : 'loading…',
-              icon: <MessageSquare size={18} />,
-              color: (ddgData?.pending ?? 0) > 0 ? 'text-red-500' : 'text-green-600',
-              bg:    (ddgData?.pending ?? 0) > 0 ? 'bg-red-50'   : 'bg-green-50',
+              label: 'Pending Action Points',
+              value: apStats?.pending ?? '—',
+              sub: apStats ? `${apStats.done} done · ${apStats.failed} failed` : 'loading…',
+              icon: <ListChecks size={18} />,
+              color: (apStats?.pending ?? 0) > 0 ? 'text-red-500' : 'text-green-600',
+              bg:    (apStats?.pending ?? 0) > 0 ? 'bg-red-50'   : 'bg-green-50',
             },
           ].map(k => (
             <div key={k.label} className="rounded-xl border bg-white p-4 sm:p-5 flex items-start gap-3.5">
@@ -455,65 +448,6 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               <div className="flex items-center justify-center h-48 text-sm text-zinc-400">No meeting data</div>
             )}
             <AIInsight text={analysis?.meetingInsight} loading={isGenerating && !analysis} />
-          </CardContent>
-        </Card>
-
-        {/* ── DDG Intelligence ── */}
-        <Card className="overflow-hidden">
-          <CardHeader className="py-3 px-5 border-b flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-semibold">DDG Feedback Intelligence</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Action rate, type breakdown and backlog</p>
-            </div>
-            <Link to="/reports/ddg-intelligence" className="text-xs text-brand hover:underline flex items-center gap-0.5 shrink-0">
-              Full report <ChevronRight size={12} />
-            </Link>
-          </CardHeader>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
-              {/* Action rate circle */}
-              <div className="flex flex-col items-center justify-center gap-2">
-                {ddgData && ddgData.total > 0 ? (
-                  <>
-                    <div className="relative flex h-28 w-28 items-center justify-center">
-                      <svg className="rotate-[-90deg]" viewBox="0 0 120 120" width="112" height="112">
-                        <circle cx="60" cy="60" r="50" fill="none" stroke="#f4f4f5" strokeWidth="12" />
-                        <circle cx="60" cy="60" r="50" fill="none" stroke={GREEN} strokeWidth="12"
-                          strokeDasharray={`${2 * Math.PI * 50}`}
-                          strokeDashoffset={`${2 * Math.PI * 50 * (1 - ddgData.actionRate / 100)}`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute text-center">
-                        <p className="text-2xl font-bold tabular-nums">{ddgData.actionRate}%</p>
-                        <p className="text-[10px] text-zinc-400">actioned</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 text-xs text-zinc-500">
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{ddgData.actioned} done</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{ddgData.pending} pending</span>
-                    </div>
-                  </>
-                ) : <p className="text-sm text-zinc-400 text-center">No feedback recorded</p>}
-              </div>
-              {/* By type stacked bar */}
-              <div className="lg:col-span-2">
-                {ddgData?.byType?.length ? (
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={ddgData.byType.slice(0, 6)} layout="vertical" margin={{ left: 4, right: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={90} />
-                      <Tooltip {...TIP} />
-                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                      <Bar dataKey="Actioned" stackId="a" fill={GREEN} radius={[0, 0, 0, 0]} barSize={14} name="Actioned" />
-                      <Bar dataKey="Pending"  stackId="a" fill={AMBER} radius={[0, 3, 3, 0]} barSize={14} name="Pending"  />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : <div className="flex items-center justify-center h-40 text-sm text-zinc-400">No type data</div>}
-              </div>
-            </div>
-            <AIInsight text={analysis?.ddgInsight} loading={isGenerating && !analysis} />
           </CardContent>
         </Card>
 

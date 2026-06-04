@@ -14,9 +14,6 @@ import { InternalMeetingForm } from '@/pages/meetings/InternalMeetingForm'
 import { InternalMeetingView } from '@/pages/meetings/InternalMeetingView'
 import { ExternalStakeholders } from '@/pages/stakeholders/ExternalStakeholders'
 import { InternalStakeholders } from '@/pages/stakeholders/InternalStakeholders'
-import { DDGFeedbackList } from '@/pages/feedback/DDGFeedbackList'
-import { DDGFeedbackForm } from '@/pages/feedback/DDGFeedbackForm'
-import { DDGFeedbackView } from '@/pages/feedback/DDGFeedbackView'
 import { DocumentLibrary } from '@/pages/documents/DocumentLibrary'
 import { Reports } from '@/pages/reports/Reports'
 import { ExternalStakeholderReport } from '@/pages/reports/ExternalStakeholderReport'
@@ -80,11 +77,6 @@ export default function App() {
           {/* Stakeholders */}
           <Route path="stakeholders/external" element={<ExternalStakeholders />} />
           <Route path="stakeholders/internal" element={<InternalStakeholders />} />
-          {/* DDG Feedback */}
-          <Route path="feedback/ddg" element={<DDGFeedbackList />} />
-          <Route path="feedback/ddg/new" element={<DDGFeedbackForm />} />
-          <Route path="feedback/ddg/:id" element={<DDGFeedbackView />} />
-          <Route path="feedback/ddg/:id/edit" element={<DDGFeedbackForm />} />
           {/* Documents */}
           <Route path="documents" element={<DocumentLibrary />} />
           {/* Status Tracker */}

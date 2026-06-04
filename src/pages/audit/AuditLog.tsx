@@ -16,7 +16,6 @@ const ENTITY_TYPES = [
   { value: 'external_meeting', label: 'External Meeting' },
   { value: 'internal_meeting', label: 'Internal Meeting' },
   { value: 'action_point',     label: 'Action Point'     },
-  { value: 'ddg_feedback',     label: 'DDG Feedback'     },
   { value: 'document',         label: 'Document'         },
 ]
 

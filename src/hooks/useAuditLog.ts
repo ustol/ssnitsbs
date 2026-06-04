@@ -10,7 +10,7 @@ export interface AuditPayload {
     | 'login' | 'logout'
     | 'marked_done' | 'marked_pending' | 'marked_failed' | 'updated_notes'
   entity_type:
-    | 'external_meeting' | 'internal_meeting' | 'partnership' | 'ddg_feedback' | 'document'
+    | 'external_meeting' | 'internal_meeting' | 'partnership' | 'document'
     | 'auth'
     | 'action_point'
   entity_id: string | null

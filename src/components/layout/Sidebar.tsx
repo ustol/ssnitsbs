@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Network, Building2, Users2, MessageSquare,
+  LayoutDashboard, Network, Building2, Users2,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
   Activity, ClipboardList, Target, Database, MapPin, GitBranch, ListChecks, type LucideIcon,
 } from 'lucide-react'
@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { writeAudit } from '@/hooks/useAuditLog'
 import { getInitials } from '@/lib/utils'
-import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -73,17 +72,6 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
   const { profile } = useAuth()
   const navigate = useNavigate()
 
-  const { data: pendingDDG = 0 } = useQuery({
-    queryKey: ['ddg-pending-count'],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from('ddg_feedback')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_actioned', false)
-      return count ?? 0
-    },
-    refetchInterval: 60_000,
-  })
 
   async function handleSignOut() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -160,7 +148,6 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/performance-tracker" label="Big Push Tracker" icon={Target} />
 
             <SectionLabel>Reporting</SectionLabel>
-            <SidebarLink to="/feedback/ddg" label="DDG's Comments" icon={MessageSquare} badge={pendingDDG} />
             <SidebarLink to="/reports" label="Executive Reports" icon={BarChart3} />
 
             <SectionLabel>Resources</SectionLabel>
