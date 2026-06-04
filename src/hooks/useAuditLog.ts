@@ -5,8 +5,14 @@ import type { AuditLog } from '@/types/database'
 // ── Write (fire-and-forget) ───────────────────────────────────────────────────
 
 export interface AuditPayload {
-  action: 'created' | 'updated' | 'deleted' | 'uploaded_file' | 'set_display_picture'
-  entity_type: 'external_meeting' | 'internal_meeting' | 'partnership' | 'ddg_feedback' | 'document'
+  action:
+    | 'created' | 'updated' | 'deleted' | 'uploaded_file' | 'set_display_picture'
+    | 'login' | 'logout'
+    | 'marked_done' | 'marked_pending' | 'marked_failed' | 'updated_notes'
+  entity_type:
+    | 'external_meeting' | 'internal_meeting' | 'partnership' | 'ddg_feedback' | 'document'
+    | 'auth'
+    | 'action_point'
   entity_id: string | null
   entity_name: string | null
   changes?: Record<string, { from: unknown; to: unknown }> | null

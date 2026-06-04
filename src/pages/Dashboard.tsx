@@ -2,13 +2,14 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Handshake, CalendarCheck, MessageSquare, ArrowRight, Clock,
-  AlertTriangle, HardHat, DollarSign, Users, TrendingUp, Eye,
+  AlertTriangle, HardHat, DollarSign, Users, TrendingUp, Eye, ListChecks, XCircle,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useSettings } from '@/hooks/useSettings'
 import { useDataWarehouse, useProjectActivities, buildActivitySummaries } from '@/hooks/useDataWarehouse'
+import { useActionPointStats } from '@/hooks/useActionPoints'
 import {
   useHealthScorecardReport,
   useExecutiveReport,
@@ -133,6 +134,7 @@ export function Dashboard() {
 
   const { data: stats,    isLoading: statsLoading   } = useDashboardStats()
   const { data: meetings, isLoading: meetingsLoading } = useRecentMeetings()
+  const { data: apStats } = useActionPointStats()
   const { data: execData  } = useExecutiveReport()
   const { data: ragData   } = useHealthScorecardReport()
   const { data: analytics } = useMeetingAnalyticsReport()
@@ -216,29 +218,45 @@ export function Dashboard() {
           loading={statsLoading}
         />
         <HeroKPI
-          label="Pending DDG Items"
-          value={stats?.pendingDDG ?? '—'}
-          sub={stats?.pendingDDG ? 'action required' : 'all actioned'}
-          icon={<MessageSquare className="h-5 w-5" />}
-          accent={stats?.pendingDDG ? 'danger' : 'success'}
-          loading={statsLoading}
+          label="Pending Actions"
+          value={((stats?.pendingDDG ?? 0) + (apStats?.pending ?? 0)) || '—'}
+          sub={`${stats?.pendingDDG ?? 0} DDG · ${apStats?.pending ?? 0} action points`}
+          icon={<ListChecks className="h-5 w-5" />}
+          accent={(stats?.pendingDDG ?? 0) + (apStats?.pending ?? 0) > 0 ? 'danger' : 'success'}
+          loading={statsLoading && !apStats}
         />
       </div>
 
       {/* ══════════════════════════════════════════════════════════════
-          ZONE 2 — Attention alert (only shown when pending DDG > 0)
+          ZONE 2 — Attention alerts
       ══════════════════════════════════════════════════════════════ */}
-      {(stats?.pendingDDG ?? 0) > 0 && (
-        <Link
-          to="/feedback/ddg"
-          className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors group"
-        >
-          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-          <p className="text-sm font-medium text-red-700 flex-1">
-            {stats!.pendingDDG} DDG comment{stats!.pendingDDG > 1 ? 's' : ''} pending action
-          </p>
-          <ArrowRight className="h-4 w-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
+      {((stats?.pendingDDG ?? 0) > 0 || (apStats?.failed ?? 0) > 0) && (
+        <div className="space-y-2">
+          {(stats?.pendingDDG ?? 0) > 0 && (
+            <Link
+              to="/feedback/ddg"
+              className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors group"
+            >
+              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+              <p className="text-sm font-medium text-red-700 flex-1">
+                {stats!.pendingDDG} DDG comment{stats!.pendingDDG > 1 ? 's' : ''} pending action
+              </p>
+              <ArrowRight className="h-4 w-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          )}
+          {(apStats?.failed ?? 0) > 0 && (
+            <Link
+              to="/action-points"
+              className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100 transition-colors group"
+            >
+              <XCircle className="h-4 w-4 text-orange-500 shrink-0" />
+              <p className="text-sm font-medium text-orange-700 flex-1">
+                {apStats!.failed} action point{apStats!.failed > 1 ? 's' : ''} marked as failed
+              </p>
+              <ArrowRight className="h-4 w-4 text-orange-400 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          )}
+        </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════

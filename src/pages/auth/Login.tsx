@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,8 +28,14 @@ export function Login() {
 
   const onSubmit = async (values: FormValues) => {
     setError(null)
-    const { error: authError } = await supabase.auth.signInWithPassword(values)
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword(values)
     if (authError) { setError(authError.message); return }
+    writeAudit({
+      action:      'login',
+      entity_type: 'auth',
+      entity_id:   authData.user?.id ?? null,
+      entity_name: authData.user?.email ?? null,
+    })
     navigate('/', { replace: true })
   }
 

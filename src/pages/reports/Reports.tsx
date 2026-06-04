@@ -12,6 +12,7 @@ import {
   useDDGIntelligenceReport,
 } from '@/hooks/useReports'
 import { useDataWarehouse, useProjectActivities, buildActivitySummaries } from '@/hooks/useDataWarehouse'
+import { useActionPointStats } from '@/hooks/useActionPoints'
 import { useSettings } from '@/hooks/useSettings'
 import { useAISummary } from '@/hooks/useAISummary'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,6 +40,7 @@ interface ReportAnalysis {
   meetingInsight: string
   ddgInsight: string
   bigPushInsight: string
+  actionPointInsight: string
   recommendations: string[]
 }
 
@@ -80,6 +82,7 @@ export function Reports() {
   const { data: projects  = [] } = useDataWarehouse()
   const { data: activities = [] } = useProjectActivities()
   const { data: settings } = useSettings()
+  const { data: apStats } = useActionPointStats()
 
   const { summary, isGenerating, error, generate, reset } = useAISummary()
   const [analysis, setAnalysis] = useState<ReportAnalysis | null>(null)
@@ -111,7 +114,7 @@ export function Reports() {
     return last ? ((last.External ?? 0) + (last.Internal ?? 0)) : 0
   }, [analytics])
 
-  const dataReady = !!(execData && ragData && analytics && ddgData)
+  const dataReady = !!(execData && ragData && analytics && ddgData && apStats)
 
   // Build structured AI prompt
   function buildPrompt() {
@@ -128,6 +131,7 @@ Return exactly this structure:
   "meetingInsight": "2 sentences on meeting engagement frequency and partnership coverage",
   "ddgInsight": "2 sentences on DDG feedback action rate and urgency of pending items",
   "bigPushInsight": "1-2 sentences on Big Push programme activity and coverage",
+  "actionPointInsight": "2 sentences on action point completion rate and any failed items requiring attention",
   "recommendations": ["specific action with cited figure", "specific action with cited figure", "specific action with cited figure"]
 }
 
@@ -147,6 +151,9 @@ MEETINGS: ${analytics?.totalMeetings ?? 0} total (${analytics?.totalExt ?? 0} ex
   Partnerships with no meeting in 30+ days: ${analytics?.pctNoMeeting30d ?? 0}%
 
 DDG FEEDBACK: ${ddgData?.total ?? 0} total | ${ddgData?.pending ?? 0} pending | ${ddgData?.actionRate ?? 0}% action rate
+
+ACTION POINTS: ${apStats?.total ?? 0} total | ${apStats?.pending ?? 0} pending | ${apStats?.done ?? 0} done | ${apStats?.failed ?? 0} failed
+  Completion rate: ${apStats?.total ? Math.round(((apStats.done) / apStats.total) * 100) : 0}%
 
 BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} contractors | Total activity recorded: ${bigPush.totalActivity.toLocaleString()}`
   }
@@ -538,6 +545,53 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
           </div>
           <AIInsight text={analysis?.bigPushInsight} loading={isGenerating && !analysis} />
         </div>
+
+        {/* ── Action Point Summary ── */}
+        {apStats && (
+          <Card className="overflow-hidden">
+            <CardHeader className="py-3 px-5 border-b flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">Action Point Tracker</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Completion rate across all meeting action points</p>
+              </div>
+              <Link to="/action-points" className="text-xs text-brand hover:underline flex items-center gap-0.5 shrink-0">
+                View tracker <ChevronRight size={12} />
+              </Link>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total',   value: apStats.total,   color: 'text-zinc-800',  bg: 'bg-zinc-50'  },
+                  { label: 'Pending', value: apStats.pending, color: 'text-amber-700', bg: 'bg-amber-50' },
+                  { label: 'Done',    value: apStats.done,    color: 'text-green-700', bg: 'bg-green-50' },
+                  { label: 'Failed',  value: apStats.failed,  color: 'text-red-700',   bg: 'bg-red-50'   },
+                ].map(s => (
+                  <div key={s.label} className={`rounded-lg border p-3 text-center ${s.bg}`}>
+                    <p className={`text-2xl font-bold tabular-nums ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+              {apStats.total > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs text-zinc-500">Completion rate</p>
+                    <p className="text-xs font-bold text-zinc-700">
+                      {Math.round((apStats.done / apStats.total) * 100)}%
+                    </p>
+                  </div>
+                  <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
+                    <div
+                      className="h-2 rounded-full bg-green-500"
+                      style={{ width: `${Math.round((apStats.done / apStats.total) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <AIInsight text={analysis?.actionPointInsight} loading={isGenerating && !analysis} />
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Drill-down reports ── */}
         <div>

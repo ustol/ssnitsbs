@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ClipboardList, Pencil, Plus, Minus, Search } from 'lucide-react'
+import { ClipboardList, Pencil, Plus, Minus, Search, LogIn, LogOut, CheckCircle2, Clock, XCircle, StickyNote } from 'lucide-react'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
@@ -10,58 +10,92 @@ import { cn } from '@/lib/utils'
 import type { AuditLog as AuditLogEntry } from '@/types/database'
 
 const ENTITY_TYPES = [
-  { value: 'all', label: 'All Types' },
+  { value: 'all',              label: 'All Types'        },
+  { value: 'auth',             label: 'Login / Logout'   },
+  { value: 'partnership',      label: 'Partnership'      },
   { value: 'external_meeting', label: 'External Meeting' },
   { value: 'internal_meeting', label: 'Internal Meeting' },
-  { value: 'partnership', label: 'Partnership' },
-  { value: 'ddg_feedback', label: 'DDG Feedback' },
-  { value: 'document', label: 'Document' },
+  { value: 'action_point',     label: 'Action Point'     },
+  { value: 'ddg_feedback',     label: 'DDG Feedback'     },
+  { value: 'document',         label: 'Document'         },
 ]
 
 const ACTION_TYPES = [
-  { value: 'all', label: 'All Actions' },
-  { value: 'created', label: 'Created' },
-  { value: 'updated', label: 'Updated' },
-  { value: 'deleted', label: 'Deleted' },
-  { value: 'uploaded_file', label: 'File Uploaded' },
-  { value: 'set_display_picture', label: 'Set Display Picture' },
+  { value: 'all',                  label: 'All Actions'        },
+  { value: 'login',                label: 'Login'              },
+  { value: 'logout',               label: 'Logout'             },
+  { value: 'created',              label: 'Created'            },
+  { value: 'updated',              label: 'Updated'            },
+  { value: 'deleted',              label: 'Deleted'            },
+  { value: 'marked_done',          label: 'Marked Done'        },
+  { value: 'marked_pending',       label: 'Marked Pending'     },
+  { value: 'marked_failed',        label: 'Marked Failed'      },
+  { value: 'updated_notes',        label: 'Notes Updated'      },
+  { value: 'uploaded_file',        label: 'File Uploaded'      },
+  { value: 'set_display_picture',  label: 'Set Display Picture'},
 ]
 
 const ACTION_LABEL: Record<string, string> = {
-  created: 'Created',
-  updated: 'Updated',
-  deleted: 'Deleted',
-  uploaded_file: 'Uploaded file',
+  login:               'Login',
+  logout:              'Logout',
+  created:             'Created',
+  updated:             'Updated',
+  deleted:             'Deleted',
+  marked_done:         'Marked Done',
+  marked_pending:      'Marked Pending',
+  marked_failed:       'Marked Failed',
+  updated_notes:       'Notes Updated',
+  uploaded_file:       'Uploaded file',
   set_display_picture: 'Set display picture',
 }
 
 const ENTITY_LABEL: Record<string, string> = {
+  auth:             'Auth',
   external_meeting: 'External Meeting',
   internal_meeting: 'Internal Meeting',
-  partnership: 'Partnership',
-  ddg_feedback: 'DDG Feedback',
-  document: 'Document',
+  partnership:      'Partnership',
+  action_point:     'Action Point',
+  ddg_feedback:     'DDG Feedback',
+  document:         'Document',
 }
 
 const ACTION_COLOR: Record<string, string> = {
-  created: 'text-green-700 bg-green-50 border-green-200',
-  updated: 'text-blue-700 bg-blue-50 border-blue-200',
-  deleted: 'text-red-700 bg-red-50 border-red-200',
-  uploaded_file: 'text-amber-700 bg-amber-50 border-amber-200',
+  login:               'text-indigo-700 bg-indigo-50 border-indigo-200',
+  logout:              'text-zinc-600  bg-zinc-100  border-zinc-300',
+  created:             'text-green-700 bg-green-50  border-green-200',
+  updated:             'text-blue-700  bg-blue-50   border-blue-200',
+  deleted:             'text-red-700   bg-red-50    border-red-200',
+  marked_done:         'text-green-700 bg-green-50  border-green-200',
+  marked_pending:      'text-amber-700 bg-amber-50  border-amber-200',
+  marked_failed:       'text-red-700   bg-red-50    border-red-200',
+  updated_notes:       'text-sky-700   bg-sky-50    border-sky-200',
+  uploaded_file:       'text-amber-700 bg-amber-50  border-amber-200',
   set_display_picture: 'text-purple-700 bg-purple-50 border-purple-200',
 }
 
 const ICON_BG: Record<string, string> = {
-  created: 'bg-green-100 border-green-200',
-  updated: 'bg-blue-50 border-blue-200',
-  deleted: 'bg-red-50 border-red-200',
-  uploaded_file: 'bg-amber-50 border-amber-200',
+  login:               'bg-indigo-50 border-indigo-200',
+  logout:              'bg-zinc-100  border-zinc-300',
+  created:             'bg-green-100 border-green-200',
+  updated:             'bg-blue-50   border-blue-200',
+  deleted:             'bg-red-50    border-red-200',
+  marked_done:         'bg-green-100 border-green-200',
+  marked_pending:      'bg-amber-50  border-amber-200',
+  marked_failed:       'bg-red-50    border-red-200',
+  updated_notes:       'bg-sky-50    border-sky-200',
+  uploaded_file:       'bg-amber-50  border-amber-200',
   set_display_picture: 'bg-purple-50 border-purple-200',
 }
 
 function ActionIcon({ action }: { action: string }) {
-  if (action === 'created') return <Plus size={10} className="text-green-600" />
-  if (action === 'deleted') return <Minus size={10} className="text-red-500" />
+  if (action === 'login')          return <LogIn       size={10} className="text-indigo-600" />
+  if (action === 'logout')         return <LogOut      size={10} className="text-zinc-500"   />
+  if (action === 'created')        return <Plus        size={10} className="text-green-600"  />
+  if (action === 'deleted')        return <Minus       size={10} className="text-red-500"    />
+  if (action === 'marked_done')    return <CheckCircle2 size={10} className="text-green-600" />
+  if (action === 'marked_pending') return <Clock       size={10} className="text-amber-500"  />
+  if (action === 'marked_failed')  return <XCircle     size={10} className="text-red-500"    />
+  if (action === 'updated_notes')  return <StickyNote  size={10} className="text-sky-500"    />
   return <Pencil size={10} className="text-blue-500" />
 }
 

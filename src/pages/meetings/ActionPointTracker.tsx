@@ -61,7 +61,7 @@ function UpdateDialog({
 
   function handleSave() {
     update(
-      { id: item.id, notes },
+      { id: item.id, notes, content: item.content },
       {
         onSuccess: () => { toast.success('Notes saved'); onClose() },
         onError: () => toast.error('Failed to save notes'),
@@ -158,7 +158,7 @@ export function ActionPointTracker() {
     if (item.status === status) return
     setUpdatingId(item.id)
     update(
-      { id: item.id, status },
+      { id: item.id, status, content: item.content },
       {
         onSuccess: () => { toast.success(status === 'done' ? 'Marked as done' : 'Reset to pending') },
         onError:   () => toast.error('Failed to update status'),

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { writeAudit } from '@/hooks/useAuditLog'
 
 export interface ActionPoint {
   id: string
@@ -26,6 +27,24 @@ export function useActionPoints() {
         .order('created_at', { ascending: true })
       if (error) throw error
       return data as ActionPoint[]
+    },
+  })
+}
+
+// ─── Lightweight stats for dashboard / reports ────────────────────────────────
+export function useActionPointStats() {
+  return useQuery({
+    queryKey: ['action-point-stats'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('action_points')
+        .select('status')
+      if (error) throw error
+      const items = data ?? []
+      const pending = items.filter(i => i.status === 'pending').length
+      const done    = items.filter(i => i.status === 'done').length
+      const failed  = items.filter(i => i.status === 'failed').length
+      return { total: items.length, pending, done, failed }
     },
   })
 }
@@ -75,22 +94,31 @@ export function useSyncActionPoints() {
 
       if (rows.length === 0) return
 
-      // Upsert — on conflict (meeting_id, content) do nothing (keep existing status)
       const { error } = await supabase
         .from('action_points')
         .upsert(rows, { onConflict: 'meeting_id,content', ignoreDuplicates: true })
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['action-points'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['action-points'] })
+      qc.invalidateQueries({ queryKey: ['action-point-stats'] })
+    },
   })
 }
 
-// ─── Update status ─────────────────────────────────────────────────────────────
+// ─── Update status / notes ────────────────────────────────────────────────────
 export function useUpdateActionPoint() {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, status, notes }: { id: string; status?: 'pending' | 'done' | 'failed'; notes?: string }) => {
+    mutationFn: async ({
+      id, status, notes, content,
+    }: {
+      id: string
+      status?: 'pending' | 'done' | 'failed'
+      notes?: string
+      content?: string  // passed for audit label only
+    }) => {
       const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (status !== undefined) payload.status = status
       if (notes  !== undefined) payload.notes  = notes
@@ -100,8 +128,33 @@ export function useUpdateActionPoint() {
         .update(payload)
         .eq('id', id)
       if (error) throw error
+
+      // Audit log
+      if (status !== undefined) {
+        const actionMap = {
+          done:    'marked_done',
+          pending: 'marked_pending',
+          failed:  'marked_failed',
+        } as const
+        writeAudit({
+          action:      actionMap[status],
+          entity_type: 'action_point',
+          entity_id:   id,
+          entity_name: content ?? null,
+        })
+      } else if (notes !== undefined) {
+        writeAudit({
+          action:      'updated_notes',
+          entity_type: 'action_point',
+          entity_id:   id,
+          entity_name: content ?? null,
+        })
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['action-points'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['action-points'] })
+      qc.invalidateQueries({ queryKey: ['action-point-stats'] })
+    },
   })
 }
 
@@ -114,6 +167,9 @@ export function useDeleteActionPoint() {
       const { error } = await supabase.from('action_points').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['action-points'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['action-points'] })
+      qc.invalidateQueries({ queryKey: ['action-point-stats'] })
+    },
   })
 }

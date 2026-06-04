@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { getInitials } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
@@ -85,6 +86,13 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
   })
 
   async function handleSignOut() {
+    const { data: { user } } = await supabase.auth.getUser()
+    writeAudit({
+      action:      'logout',
+      entity_type: 'auth',
+      entity_id:   user?.id ?? null,
+      entity_name: profile?.full_name ?? user?.email ?? null,
+    })
     await supabase.auth.signOut()
     navigate('/login')
   }
