@@ -36,6 +36,7 @@ import { AuditLog } from '@/pages/audit/AuditLog'
 import { DataWarehouse } from '@/pages/datawarehouse/DataWarehouse'
 import { Colocation } from '@/pages/colocation/Colocation'
 import { VirtualBranch } from '@/pages/virtualbranch/VirtualBranch'
+import { ActionPointTracker } from '@/pages/meetings/ActionPointTracker'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -74,6 +75,8 @@ export default function App() {
           <Route path="meetings/internal/new" element={<InternalMeetingForm />} />
           <Route path="meetings/internal/:id" element={<InternalMeetingView />} />
           <Route path="meetings/internal/:id/edit" element={<InternalMeetingForm />} />
+          {/* Action Point Tracker */}
+          <Route path="action-points" element={<ActionPointTracker />} />
           {/* Stakeholders */}
           <Route path="stakeholders/external" element={<ExternalStakeholders />} />
           <Route path="stakeholders/internal" element={<InternalStakeholders />} />
