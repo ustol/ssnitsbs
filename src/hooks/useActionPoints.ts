@@ -8,7 +8,7 @@ export interface ActionPoint {
   meeting_title: string
   meeting_date: string | null
   content: string
-  status: 'pending' | 'done'
+  status: 'pending' | 'done' | 'failed'
   notes: string | null
   created_at: string
   updated_at: string
@@ -90,7 +90,7 @@ export function useUpdateActionPoint() {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, status, notes }: { id: string; status?: 'pending' | 'done'; notes?: string }) => {
+    mutationFn: async ({ id, status, notes }: { id: string; status?: 'pending' | 'done' | 'failed'; notes?: string }) => {
       const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (status !== undefined) payload.status = status
       if (notes  !== undefined) payload.notes  = notes

@@ -9,7 +9,7 @@ CREATE TABLE action_points (
   meeting_title   TEXT        NOT NULL,
   meeting_date    DATE,
   content         TEXT        NOT NULL,
-  status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done')),
+  status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done', 'failed')),
   notes           TEXT,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW(),

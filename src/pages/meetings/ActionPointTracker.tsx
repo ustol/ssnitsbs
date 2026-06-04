@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  CheckCircle2, Clock, Pencil, Trash2, RefreshCw, Search,
+  CheckCircle2, Clock, XCircle, Pencil, Trash2, RefreshCw, Search,
   ExternalLink, X, Save, Loader2, ListChecks,
 } from 'lucide-react'
 import {
@@ -19,12 +19,20 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: 'pending' | 'done' }) {
-  return status === 'done' ? (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-semibold bg-green-50 text-green-700">
-      <CheckCircle2 size={9} /> Done
-    </span>
-  ) : (
+function StatusBadge({ status }: { status: 'pending' | 'done' | 'failed' }) {
+  if (status === 'done')
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-semibold bg-green-50 text-green-700">
+        <CheckCircle2 size={9} /> Done
+      </span>
+    )
+  if (status === 'failed')
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-semibold bg-red-50 text-red-700">
+        <XCircle size={9} /> Failed
+      </span>
+    )
+  return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-semibold bg-amber-50 text-amber-700">
       <Clock size={9} /> Pending
     </span>
@@ -146,7 +154,7 @@ export function ActionPointTracker() {
   const pendingCount = items.filter(i => i.status === 'pending').length
   const doneCount    = items.filter(i => i.status === 'done').length
 
-  function handleSetStatus(item: ActionPoint, status: 'pending' | 'done') {
+  function handleSetStatus(item: ActionPoint, status: 'pending' | 'done' | 'failed') {
     if (item.status === status) return
     setUpdatingId(item.id)
     update(
@@ -283,7 +291,8 @@ export function ActionPointTracker() {
                       className={cn(
                         'border-b last:border-0 transition-colors',
                         i % 2 === 0 ? 'bg-white' : 'bg-zinc-50/30',
-                        item.status === 'done' && 'opacity-60',
+                        item.status === 'done'   && 'opacity-50',
+                        item.status === 'failed' && 'bg-red-50/40',
                       )}
                     >
                       {/* Type */}
@@ -311,7 +320,12 @@ export function ActionPointTracker() {
 
                       {/* Content */}
                       <td className="px-4 py-3">
-                        <p className={cn('text-xs text-zinc-800 leading-snug', item.status === 'done' && 'line-through text-zinc-400')}>
+                        <p className={cn(
+                          'text-xs leading-snug',
+                          item.status === 'done'   && 'line-through text-zinc-400',
+                          item.status === 'failed' && 'line-through text-red-400',
+                          item.status === 'pending' && 'text-zinc-800',
+                        )}>
                           {item.content}
                         </p>
                         {item.notes && (
@@ -355,6 +369,21 @@ export function ActionPointTracker() {
                             )}
                           >
                             <Clock size={15} />
+                          </button>
+
+                          {/* Failed */}
+                          <button
+                            onClick={() => handleSetStatus(item, 'failed')}
+                            disabled={isUpdating}
+                            title="Mark as Failed"
+                            className={cn(
+                              'p-1.5 rounded-md transition-colors',
+                              item.status === 'failed'
+                                ? 'bg-red-100 text-red-600'
+                                : 'text-zinc-300 hover:bg-red-50 hover:text-red-500',
+                            )}
+                          >
+                            <XCircle size={15} />
                           </button>
 
                           {/* Update notes */}
