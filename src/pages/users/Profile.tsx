@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { LogOut } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useUpdateProfile } from '@/hooks/useUsers'
 import { supabase } from '@/lib/supabase'
@@ -48,7 +49,12 @@ export function Profile() {
     setPwLoading(true)
     const { error } = await supabase.auth.updateUser({ password: values.password })
     setPwLoading(false)
-    if (!error) pwForm.reset()
+    if (error) {
+      toast.error(error.message)
+    } else {
+      pwForm.reset()
+      toast.success('Password updated successfully')
+    }
   }
 
   const handleSignOut = () => supabase.auth.signOut()

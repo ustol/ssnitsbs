@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
@@ -170,16 +170,18 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
           className="flex items-center gap-2 px-3.5 py-2.5 shrink-0"
           style={{ borderTop: '1px solid rgba(255,255,255,0.055)' }}
         >
-          <div
-            className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-white text-[0.65rem] font-bold shrink-0"
-            style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)' }}
-          >
-            {getInitials(profile?.full_name ?? 'U')}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[0.75rem] font-medium truncate" style={{ color: 'rgba(255,255,255,0.75)' }}>{profile?.full_name}</div>
-            <div className="text-[0.65rem] capitalize" style={{ color: 'rgba(255,255,255,0.28)', marginTop: '1px' }}>{profile?.role}</div>
-          </div>
+          <Link to="/profile" className="flex items-center gap-2 min-w-0 flex-1 group" title="My Profile">
+            <div
+              className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-white text-[0.65rem] font-bold shrink-0 transition-opacity group-hover:opacity-80"
+              style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C84E10 100%)' }}
+            >
+              {getInitials(profile?.full_name ?? 'U')}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[0.75rem] font-medium truncate group-hover:text-white/90 transition-colors" style={{ color: 'rgba(255,255,255,0.75)' }}>{profile?.full_name}</div>
+              <div className="text-[0.65rem] capitalize" style={{ color: 'rgba(255,255,255,0.28)', marginTop: '1px' }}>{profile?.role}</div>
+            </div>
+          </Link>
           <button
             onClick={handleSignOut}
             className="text-[0.875rem] transition-colors shrink-0"
