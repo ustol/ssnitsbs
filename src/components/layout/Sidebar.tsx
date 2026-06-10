@@ -2,7 +2,7 @@ import { NavLink, useNavigate, Link } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
-  Activity, ClipboardList, Target, Database, MapPin, GitBranch, ListChecks, type LucideIcon,
+  Activity, ClipboardList, Target, Database, MapPin, GitBranch, ListChecks, Briefcase, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -146,6 +146,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/action-points" label="Action Point Tracker" icon={ListChecks} />
             <SidebarLink to="/status-tracker" label="Status Tracker" icon={Activity} />
             <SidebarLink to="/performance-tracker" label="Big Push Tracker" icon={Target} />
+            <SidebarLink to="/labour-ministry" label="Labour Ministry" icon={Briefcase} />
 
             <SectionLabel>Reporting</SectionLabel>
             <SidebarLink to="/reports" label="Executive Reports" icon={BarChart3} />

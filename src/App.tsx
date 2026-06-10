@@ -34,6 +34,7 @@ import { DataWarehouse } from '@/pages/datawarehouse/DataWarehouse'
 import { Colocation } from '@/pages/colocation/Colocation'
 import { VirtualBranch } from '@/pages/virtualbranch/VirtualBranch'
 import { ActionPointTracker } from '@/pages/meetings/ActionPointTracker'
+import { LabourMinistry } from '@/pages/labourministry/LabourMinistry'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -83,6 +84,8 @@ export default function App() {
           <Route path="status-tracker" element={<StatusTracker />} />
           {/* Performance Tracker */}
           <Route path="performance-tracker" element={<PerformanceTracker />} />
+          {/* Labour Ministry */}
+          <Route path="labour-ministry" element={<LabourMinistry />} />
           {/* Reports */}
           <Route path="reports" element={<Reports />} />
           <Route path="reports/external-stakeholder" element={<ExternalStakeholderReport />} />
