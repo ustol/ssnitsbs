@@ -146,7 +146,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/action-points" label="Action Point Tracker" icon={ListChecks} />
             <SidebarLink to="/status-tracker" label="Status Tracker" icon={Activity} />
             <SidebarLink to="/performance-tracker" label="Big Push Tracker" icon={Target} />
-            <SidebarLink to="/labour-ministry" label="Taskforce Activities" icon={Briefcase} />
+            <SidebarLink to="/labour-ministry" label="Compliance Activities" icon={Briefcase} />
 
             <SectionLabel>Reporting</SectionLabel>
             <SidebarLink to="/reports" label="Executive Reports" icon={BarChart3} />
