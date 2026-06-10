@@ -80,7 +80,7 @@ function EstablishmentDialog({
           <DialogTitle>{initial ? 'Edit Establishment' : 'Add Establishment'}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
+          <form className="space-y-4 px-1 py-2" onSubmit={form.handleSubmit(onSave)}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField control={form.control} name="establishment_name" render={({ field }) => (
                 <FormItem className="sm:col-span-2">
