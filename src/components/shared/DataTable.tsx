@@ -67,7 +67,7 @@ export function DataTable<T extends Record<string, any>>({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {searchable && (
             <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder={searchPlaceholder}
                 value={query}
