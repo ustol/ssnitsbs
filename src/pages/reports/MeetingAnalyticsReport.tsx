@@ -9,6 +9,10 @@ import { formatDate } from '@/lib/utils'
 
 type MeetingData = NonNullable<ReturnType<typeof useMeetingAnalyticsReport>['data']>
 
+function buildAISummary(data: MeetingData): string {
+  return `Write exactly 2 concise sentences on SSNIT partnership meeting engagement. Sentence 1: total meetings and type split. Sentence 2: the most notable cadence gap finding. No preambles.\n\nDATA: ${data.totalMeetings} meetings | ${data.totalExt} ext | ${data.totalMeetings - data.totalExt} int | avg ${data.avgMeetingsPerPartnership}/partnership | ${data.pctNoMeeting30d}% of partnerships with no meeting in 30 days`
+}
+
 function buildPrompt(data: MeetingData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -35,7 +39,7 @@ FROM: Special Business Support Team
 DATE: ${today}
 SUBJECT: Meeting Analytics Report
 
-[Write 4 paragraphs: (1) overall meeting activity — ${data.totalMeetings} total meetings (${data.totalExt} external, ${data.totalMeetings - data.totalExt} internal), avg ${data.avgMeetingsPerPartnership} meetings per partnership; (2) cadence gaps — ${data.pctNoMeeting30d}% of partnerships have had no meeting in 30 days; detail the cadence distribution; (3) most and least active partnerships by name, citing specific meeting counts and days since last meeting; (4) recommended actions to improve meeting frequency and close engagement gaps. Reference specific partnership names.]
+[Write exactly 3 paragraphs: (1) overall meeting activity — ${data.totalMeetings} total meetings (${data.totalExt} external, ${data.totalMeetings - data.totalExt} internal), avg ${data.avgMeetingsPerPartnership} meetings per partnership; (2) cadence gaps — ${data.pctNoMeeting30d}% of partnerships have had no meeting in 30 days; name the most and least active partnerships by name, citing specific counts and days since last meeting; (3) recommended actions to improve meeting frequency and close engagement gaps. Reference specific partnership names.]
 
 --- DATA ---
 
@@ -61,6 +65,7 @@ export function MeetingAnalyticsReport() {
       filename="Meeting Analytics Report"
       loading={isLoading}
       memoPrompt={data ? buildPrompt(data) : null}
+      summaryPrompt={data ? buildAISummary(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">

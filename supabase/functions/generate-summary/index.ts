@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 800,
         system: 'You are a concise executive report writer for SSNIT (Social Security and National Insurance Trust), Ghana. Write factual, data-driven summaries that cite the exact figures provided. Never use filler phrases like "the data shows", "it is evident", or "the report reveals". Write in plain declarative sentences.',
         messages: [{ role: 'user', content: prompt }],
       }),

@@ -7,6 +7,11 @@ const COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14
 
 type ExtData = NonNullable<ReturnType<typeof useExtStakeholderReport>['data']>
 
+function buildAISummary(data: ExtData): string {
+  const totalLinks = data.rows.reduce((s, r) => s + r.partnershipCount, 0)
+  return `Write exactly 2 concise sentences on SSNIT external stakeholder engagement. Sentence 1: stakeholder count, organisations covered, and total partnership linkages. Sentence 2: a key insight about engagement depth or coverage gaps. No preambles.\n\nDATA: ${data.total} stakeholders | ${data.byOrg.length} organisations | ${totalLinks} partnership links`
+}
+
 function buildSummaryPrompt(data: ExtData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   const totalLinks = data.rows.reduce((s, r) => s + r.partnershipCount, 0)
@@ -34,7 +39,7 @@ FROM: Special Business Support Team
 DATE: ${today}
 SUBJECT: External Stakeholder Engagement Report
 
-[Write 3–4 paragraphs: (1) overview of the external stakeholder register and organisational coverage, (2) highlight the most engaged stakeholders and their partnership involvement by name, (3) meeting activity — specific external meetings and their outcomes, (4) any gaps or recommended actions. Reference stakeholders, organisations, and partnerships by their actual names.]
+[Write exactly 3 paragraphs: (1) overview of the external stakeholder register — total count, organisations represented, partnership linkages; (2) highlight the most engaged stakeholders by name, their organisations, and the partnerships they are linked to; (3) recommended actions to deepen external engagement and address any organisations or partnerships with no stakeholder coverage. Reference stakeholders and partnerships by their actual names.]
 
 --- DATA ---
 
@@ -57,6 +62,7 @@ export function ExternalStakeholderReport() {
       filename="External Stakeholder Report"
       loading={isLoading}
       memoPrompt={data ? buildSummaryPrompt(data) : null}
+      summaryPrompt={data ? buildAISummary(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /><Skeleton className="h-64" /></div>

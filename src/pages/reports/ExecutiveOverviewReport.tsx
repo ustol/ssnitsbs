@@ -11,6 +11,11 @@ const RAG_CONFIG = {
   green: { label: 'Green', bg: 'bg-green-50',  text: 'text-green-700', dot: 'bg-green-500' },
 }
 
+function buildAISummary(data: ScorecardData): string {
+  const redNames = data.rows.filter(r => r.rag === 'red').map(r => r.title).join(', ')
+  return `Write exactly 2 concise sentences summarising a SSNIT partnership health portfolio. Sentence 1 states the overall RAG distribution with exact numbers. Sentence 2 names the most urgent concern or, if there are no red partnerships, the most notable amber risk. No preambles or filler phrases.\n\nDATA: ${data.total} total | ${data.redCount} Red | ${data.amberCount} Amber | ${data.greenCount} Green${redNames ? `\nRed partnerships: ${redNames}` : ''}`
+}
+
 function buildPrompt(data: ScorecardData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -22,7 +27,6 @@ function buildPrompt(data: ScorecardData): string {
     if (r.daysSinceLastMeeting === null) issues.push('no meetings ever recorded')
     else if (r.daysSinceLastMeeting >= 60) issues.push(`no meeting for ${r.daysSinceLastMeeting} days`)
     if (r.daysInCurrentStatus !== null && r.daysInCurrentStatus >= 90) issues.push(`stuck in "${r.status?.name ?? 'current status'}" for ${r.daysInCurrentStatus} days`)
-    if (r.openDDGCount >= 3) issues.push(`${r.openDDGCount} unactioned DDG items`)
     return `  • ${r.title} [${r.status?.name ?? 'No Status'}] — ${issues.join('; ')}`
   }).join('\n')
 
@@ -31,7 +35,6 @@ function buildPrompt(data: ScorecardData): string {
     if (r.daysSinceLastMeeting === null) issues.push('no meetings recorded')
     else if (r.daysSinceLastMeeting >= 30) issues.push(`no meeting in ${r.daysSinceLastMeeting} days`)
     if (r.daysInCurrentStatus !== null && r.daysInCurrentStatus >= 60) issues.push(`${r.daysInCurrentStatus} days in current status`)
-    if (r.openDDGCount >= 1) issues.push(`${r.openDDGCount} open DDG item(s)`)
     return `  • ${r.title} — ${issues.join('; ')}`
   }).join('\n')
 
@@ -46,7 +49,7 @@ FROM: Special Business Support Team
 DATE: ${today}
 SUBJECT: Partnership Health Status Report
 
-[Write 4–5 paragraphs: (1) overall portfolio health — ${data.total} partnerships assessed, ${data.redCount} red, ${data.amberCount} amber, ${data.greenCount} green; (2) detail each RED partnership by name with specific risk indicators; (3) highlight amber partnerships needing monitoring; (4) briefly acknowledge green partnerships; (5) recommended actions for DDG's attention. Reference partnerships by their actual names and cite specific figures.]
+[Write exactly 3 paragraphs: (1) overall portfolio health — ${data.total} partnerships assessed, ${data.redCount} red, ${data.amberCount} amber, ${data.greenCount} green; (2) detail each RED partnership by name with specific risk indicators, then briefly acknowledge amber partnerships requiring monitoring; (3) recommended actions for DDG's attention to address red and amber risks. Reference partnerships by their actual names and cite specific figures.]
 
 --- DATA ---
 
@@ -66,10 +69,11 @@ export function ExecutiveOverviewReport() {
   return (
     <ReportPage
       title="Partnership Health Scorecard"
-      subtitle="RAG-rated health assessment — meeting cadence, status progression and DDG exposure"
+      subtitle="RAG-rated health assessment — meeting cadence and status progression"
       filename="Partnership Health Scorecard"
       loading={isLoading}
       memoPrompt={data ? buildPrompt(data) : null}
+      summaryPrompt={data ? buildAISummary(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">
@@ -89,9 +93,9 @@ export function ExecutiveOverviewReport() {
           {/* RAG criteria */}
           <div className="rounded-lg border bg-zinc-50/60 px-4 py-3 text-xs text-zinc-500 space-y-1.5">
             <p className="font-semibold text-zinc-600 mb-1">RAG Criteria</p>
-            <p><span className="font-semibold text-red-600">Red</span> — no meeting in 60+ days, or same status for 90+ days, or 3+ unactioned DDG items</p>
-            <p><span className="font-semibold text-amber-600">Amber</span> — no meetings ever, no meeting in 30+ days, same status 60+ days, or any open DDG item</p>
-            <p><span className="font-semibold text-green-600">Green</span> — meeting within 30 days, status progressed within 60 days, no open DDG items</p>
+            <p><span className="font-semibold text-red-600">Red</span> — no meeting in 60+ days, or same status for 90+ days</p>
+            <p><span className="font-semibold text-amber-600">Amber</span> — no meetings ever, no meeting in 30+ days, or same status 60+ days</p>
+            <p><span className="font-semibold text-green-600">Green</span> — meeting within 30 days and status progressed within 60 days</p>
           </div>
 
           <SectionTitle>Full Scorecard</SectionTitle>

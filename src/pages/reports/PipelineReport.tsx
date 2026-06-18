@@ -15,6 +15,11 @@ function fmt(n: number) {
 
 type PipelineData = NonNullable<ReturnType<typeof usePipelineReport>['data']>
 
+function buildAISummary(data: PipelineData): string {
+  const slowest = data.dwellByStatus[0]
+  return `Write exactly 2 concise sentences on SSNIT's partnership pipeline. Sentence 1: total partnerships, open count, total proposed value. Sentence 2: identify the key bottleneck stage by name and average dwell time. No preambles.\n\nDATA: ${data.totalPartnerships} total | ${data.openCount} open | ${fmt(data.totalProposed)} proposed${slowest ? `\nSlowest stage: ${slowest.name} (${slowest.avgDays}d avg)` : ''}`
+}
+
 function buildPrompt(data: PipelineData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -44,7 +49,7 @@ FROM: Special Business Support Team
 DATE: ${today}
 SUBJECT: Partnership Pipeline & Progression Report
 
-[Write 4–5 paragraphs: (1) overview — ${data.totalPartnerships} total partnerships, ${data.openCount} currently open, ${fmt(data.totalProposed)} proposed members across all stages; (2) stage distribution — reference specific stages and counts; (3) bottleneck analysis — which status stages have the longest average dwell time and what this suggests; (4) longest-running open partnerships by name and duration; (5) projections (best case ${data.bestPct}%: ${fmt(Math.round(data.totalProposed * data.bestPct / 100))} members, worst case ${data.worstPct}%: ${fmt(Math.round(data.totalProposed * data.worstPct / 100))} members) and recommended actions.]
+[Write exactly 3 paragraphs: (1) overview — ${data.totalPartnerships} total partnerships, ${data.openCount} currently open, ${fmt(data.totalProposed)} proposed members across all stages, with stage distribution; (2) bottleneck analysis — which status stages have the longest average dwell time and which partnerships have been open the longest, naming them specifically; (3) projections (best case ${data.bestPct}%: ${fmt(Math.round(data.totalProposed * data.bestPct / 100))} members, worst case ${data.worstPct}%: ${fmt(Math.round(data.totalProposed * data.worstPct / 100))} members) and recommended actions to accelerate stalled partnerships.]
 
 --- DATA ---
 
@@ -71,6 +76,7 @@ export function PipelineReport() {
       filename="Pipeline & Progression Report"
       loading={isLoading}
       memoPrompt={data ? buildPrompt(data) : null}
+      summaryPrompt={data ? buildAISummary(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">

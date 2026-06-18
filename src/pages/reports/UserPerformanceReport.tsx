@@ -8,13 +8,19 @@ const PIE_COLORS = ['#E8621A','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899']
 
 type UserData = NonNullable<ReturnType<typeof useUserPerformanceReport>['data']>
 
+function buildAISummary(data: UserData): string {
+  const active = data.users.filter(u => u.total > 0).length
+  const totalAll = data.totals.partnerships + data.totals.ext + data.totals.int
+  return `Write exactly 2 concise sentences on SSNIT SBS system activity. Sentence 1: total users, how many are active, and total attributed records. Sentence 2: identify the top contributor(s) by name and record count. No preambles.\n\nDATA: ${data.users.length} users | ${active} active | ${totalAll} attributed records (${data.totals.partnerships} partnerships, ${data.totals.ext} ext meetings, ${data.totals.int} int meetings)`
+}
+
 function buildSummaryPrompt(data: UserData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   const active = data.users.filter(u => u.total > 0).length
-  const totalAll = data.totals.partnerships + data.totals.ext + data.totals.int + data.totals.ddg
+  const totalAll = data.totals.partnerships + data.totals.ext + data.totals.int
 
   const userLines = data.users.filter(u => u.total > 0).map(u =>
-    `  • ${u.full_name ?? u.email ?? 'Unknown'} (${u.role ?? 'Standard'}) — ${u.total} records total: ${u.partnerships_n} partnerships, ${u.ext_n} ext. meetings, ${u.int_n} int. meetings, ${u.ddg_n} DDG feedback`
+    `  • ${u.full_name ?? u.email ?? 'Unknown'} (${u.role ?? 'Standard'}) — ${u.total} records total: ${u.partnerships_n} partnerships, ${u.ext_n} ext. meetings, ${u.int_n} int. meetings`
   ).join('\n')
 
   return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.
@@ -28,7 +34,7 @@ FROM: Special Business Support Team
 DATE: ${today}
 SUBJECT: User Activity and Performance Report — SBS System
 
-[Write 3–4 paragraphs: (1) overall system usage and data entry activity, (2) individual user contributions — name the most active users and what they've contributed, (3) attribution coverage and any unattributed records, (4) any observations or recommendations. Reference users by their actual names and specific record counts.]
+[Write exactly 3 paragraphs: (1) overall system usage — ${data.users.length} users, ${active} with attributed activity, ${totalAll} total records across partnerships and meetings; (2) individual user contributions — name the most active users and specifically what they've contributed; (3) attribution coverage — ${data.unattributed} unattributed records, plus any observations and recommended actions to improve data quality. Reference users by their actual names and specific record counts.]
 
 --- DATA ---
 
@@ -39,7 +45,6 @@ SYSTEM TOTALS:
   Partnerships: ${data.totals.partnerships} (${data.attributed.partnerships} attributed)
   External Meetings: ${data.totals.ext} (${data.attributed.ext} attributed)
   Internal Meetings: ${data.totals.int} (${data.attributed.int} attributed)
-  DDG Feedback: ${data.totals.ddg} (${data.attributed.ddg} attributed)
   Unattributed records: ${data.unattributed} of ${totalAll}`
 }
 
@@ -60,6 +65,7 @@ export function UserPerformanceReport() {
       filename="User Performance Report"
       loading={isLoading}
       memoPrompt={data ? buildSummaryPrompt(data) : null}
+      summaryPrompt={data ? buildAISummary(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>

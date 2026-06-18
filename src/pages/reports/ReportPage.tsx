@@ -3,8 +3,53 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, Download, Loader2, Sparkles, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { generatePdf, generateMemoPdf } from '@/lib/pdf'
 import { useAISummary } from '@/hooks/useAISummary'
+
+// ─── Inline AI Summary Box ───────────────────────────────────────────────────
+
+function ReportSummaryBox({ prompt }: { prompt: string }) {
+  const { summary, isGenerating, error, generate, reset } = useAISummary()
+  const triggered = useRef(false)
+
+  useEffect(() => {
+    if (!triggered.current) {
+      triggered.current = true
+      generate(prompt)
+    }
+  }, [generate, prompt])
+
+  return (
+    <div className="rounded-lg border border-orange-100 bg-orange-50/30 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles size={12} className="text-brand shrink-0" />
+        <span className="text-xs font-semibold text-zinc-700 flex-1">AI Summary</span>
+        {(summary || error) && !isGenerating && (
+          <button
+            type="button"
+            className="text-[10px] text-zinc-400 hover:text-brand transition-colors"
+            onClick={() => { reset(); setTimeout(() => generate(prompt), 50) }}
+          >
+            Regenerate
+          </button>
+        )}
+      </div>
+      {isGenerating && (
+        <div className="space-y-1.5">
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-10/12" />
+        </div>
+      )}
+      {error && !isGenerating && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
+      {summary && !isGenerating && (
+        <p className="text-[0.82rem] text-zinc-700 leading-relaxed">{summary}</p>
+      )}
+    </div>
+  )
+}
 
 // ─── Memo Modal ───────────────────────────────────────────────────────────────
 
@@ -131,6 +176,7 @@ interface ReportPageProps {
   children: React.ReactNode
   loading?: boolean
   memoPrompt?: string | null
+  summaryPrompt?: string | null
 }
 
 export function ReportPage({
@@ -140,6 +186,7 @@ export function ReportPage({
   children,
   loading,
   memoPrompt,
+  summaryPrompt,
 }: ReportPageProps) {
   const [generating, setGenerating] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
@@ -228,6 +275,8 @@ export function ReportPage({
             <p className="text-zinc-400">{new Date().toLocaleTimeString()}</p>
           </div>
         </div>
+
+        {summaryPrompt && <ReportSummaryBox prompt={summaryPrompt} />}
 
         {children}
       </div>

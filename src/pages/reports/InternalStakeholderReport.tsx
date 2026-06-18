@@ -8,6 +8,10 @@ import { formatDate } from '@/lib/utils'
 
 type IntData = NonNullable<ReturnType<typeof useIntStakeholderReport>['data']>
 
+function buildAISummary(data: IntData): string {
+  return `Write exactly 2 concise sentences on SSNIT internal stakeholder involvement. Sentence 1: stakeholder count, departments covered, and partnerships covered. Sentence 2: a key observation about engagement depth or gaps. No preambles.\n\nDATA: ${data.total} stakeholders | ${data.departments} departments | ${data.coveredPartnerships} partnerships covered | avg ${data.avgPartnerships} partnerships/person`
+}
+
 function buildSummaryPrompt(data: IntData): string {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -35,7 +39,7 @@ FROM: Special Business Support Team
 DATE: ${today}
 SUBJECT: Internal Stakeholder Involvement Report
 
-[Write 4 paragraphs: (1) overview — ${data.total} internal stakeholders across ${data.departments} departments, covering ${data.coveredPartnerships} partnership(s), average ${data.avgPartnerships} partnerships per stakeholder; (2) name the most involved individuals — their departments, which partnerships they are linked to, and associated meeting activity; (3) departmental engagement — which departments are most active and which are underrepresented; (4) ${unlinkedCount > 0 ? `note that ${unlinkedCount} stakeholder(s) have no partnership links and may need assignment;` : ''} recommended actions to strengthen internal engagement. Reference specific names and partnerships.]
+[Write exactly 3 paragraphs: (1) overview — ${data.total} internal stakeholders across ${data.departments} departments, covering ${data.coveredPartnerships} partnership(s), average ${data.avgPartnerships} partnerships per stakeholder; (2) name the most involved individuals — their departments, which partnerships they are linked to, and departmental engagement summary noting which departments are most and least represented; (3) ${unlinkedCount > 0 ? `note that ${unlinkedCount} stakeholder(s) have no partnership links; ` : ''}recommended actions to strengthen internal engagement and ensure broader departmental coverage. Reference specific names and partnerships.]
 
 --- DATA ---
 
@@ -58,6 +62,7 @@ export function InternalStakeholderReport() {
       filename="Internal Stakeholder Report"
       loading={isLoading}
       memoPrompt={data ? buildSummaryPrompt(data) : null}
+      summaryPrompt={data ? buildAISummary(data) : null}
     >
       {isLoading ? (
         <div className="space-y-4">
