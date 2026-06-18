@@ -16,7 +16,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { formatDate, formatNumber, calcProjection } from '@/lib/utils'
+import { formatDate, formatNumber, formatCompact, calcProjection } from '@/lib/utils'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell,
@@ -48,7 +48,7 @@ function useDashboardStats() {
         extMeetings, intMeetings,
         extThisMonth, intThisMonth,
         extLastMonth, intLastMonth,
-        complianceData, ddgData,
+        complianceData,
       ] = await Promise.all([
         supabase.from('partnerships').select(
           `id, title, proposed_value, created_at,
@@ -63,7 +63,6 @@ function useDashboardStats() {
         supabase.from('external_meetings').select('id', { count: 'exact' }).gte('meeting_date', lastMonthStart).lt('meeting_date', monthStart),
         supabase.from('internal_meetings').select('id', { count: 'exact' }).gte('meeting_date', lastMonthStart).lt('meeting_date', monthStart),
         supabase.from('compliance_activities').select('actual_contributions, penalty, remarks'),
-        supabase.from('ddg_feedback').select('id', { count: 'exact' }).eq('is_actioned', false),
       ])
 
       const compRows = (complianceData.data ?? []) as ComplianceRow[]
@@ -87,7 +86,6 @@ function useDashboardStats() {
           penalties    : compPenalties,
           followUps    : compFollowUps,
         },
-        unactionedDDG: ddgData.count ?? 0,
       }
     },
   })
@@ -135,7 +133,7 @@ function HeroKPI({
         {loading ? (
           <Skeleton className="h-7 w-20" />
         ) : (
-          <p className="text-2xl font-bold text-zinc-900 tabular-nums leading-none">{value}</p>
+          <p className="text-xl font-bold text-zinc-900 tabular-nums leading-none truncate">{value}</p>
         )}
         {sub && <p className="text-xs text-zinc-400 mt-1 leading-tight">{sub}</p>}
       </div>
@@ -211,8 +209,8 @@ export function Dashboard() {
 
         <HeroKPI
           label="Total Pipeline Value"
-          value={execData?.totalProposed != null ? formatNumber(execData.totalProposed) : '—'}
-          sub={`best case: ${formatNumber(calcProjection(execData?.totalProposed ?? 0, bestPct))}`}
+          value={execData?.totalProposed != null ? formatCompact(execData.totalProposed) : '—'}
+          sub={execData ? `${formatNumber(execData.totalProposed)} · best ${formatCompact(calcProjection(execData.totalProposed, bestPct))}` : undefined}
           icon={<DollarSign className="h-5 w-5" />}
           accent="brand"
           loading={!execData && statsLoading}
@@ -269,7 +267,7 @@ export function Dashboard() {
 
         <HeroKPI
           label="Compliance Collected"
-          value={stats?.compliance != null ? formatNumber(stats.compliance.contributions) : '—'}
+          value={stats?.compliance != null ? formatCompact(stats.compliance.contributions) : '—'}
           sub={stats?.compliance ? `${stats.compliance.total} establishments · ${stats.compliance.followUps} follow-ups` : 'loading…'}
           icon={<Briefcase className="h-5 w-5" />}
           accent="brand"
@@ -290,18 +288,6 @@ export function Dashboard() {
               {apStats!.failed} action point{apStats!.failed > 1 ? 's' : ''} marked as failed — review required
             </p>
             <ArrowRight className="h-4 w-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-        )}
-        {(stats?.unactionedDDG ?? 0) > 0 && (
-          <Link
-            to="/reports/ddg-intelligence"
-            className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors group"
-          >
-            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-            <p className="text-sm font-medium text-amber-700 flex-1">
-              {stats!.unactionedDDG} DDG feedback item{stats!.unactionedDDG > 1 ? 's' : ''} still awaiting action
-            </p>
-            <ArrowRight className="h-4 w-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         )}
       </div>
