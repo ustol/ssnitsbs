@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useInternalMeeting, useDeleteInternalMeeting } from '@/hooks/useMeetings'
 import { useMeetingAttachments, useDeleteMeetingAttachment, useSetDisplayPicture } from '@/hooks/useMeetingAttachments'
 import { useEntityAuditLog, writeAudit } from '@/hooks/useAuditLog'
+import { MeetingMinutesButton } from '@/components/meetings/MeetingMinutesButton'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
@@ -126,6 +127,7 @@ export function InternalMeetingView() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back</Button>
             <Button variant="outline" size="sm" onClick={handleShare}><Share2 className="h-3.5 w-3.5 mr-1.5" />Share</Button>
+            <MeetingMinutesButton meeting={m} meetingType="internal" />
             <Button variant="outline" size="sm" asChild>
               <Link to={`/meetings/internal/${id}/edit`}><Pencil className="h-3.5 w-3.5 mr-1.5" />Edit</Link>
             </Button>
