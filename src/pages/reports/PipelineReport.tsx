@@ -34,7 +34,8 @@ function buildPrompt(data: PipelineData): string {
   const openLines = data.openPartnerships.slice(0, 12)
     .map(p => {
       const dur = p.daysOpen !== null ? `${p.daysOpen} days in pipeline` : 'start date not set'
-      return `  • ${p.title} [${p.status?.name ?? 'No Status'}] — ${dur}, ${fmt(p.proposedValue)} proposed members`
+      const vital = p.vitalInfo.length > 0 ? `; vital info: ${p.vitalInfo.map(v => v.subject).join(', ')}` : ''
+      return `  • ${p.title} [${p.status?.name ?? 'No Status'}] — ${dur}, ${fmt(p.proposedValue)} proposed members${vital}`
     })
     .join('\n')
 

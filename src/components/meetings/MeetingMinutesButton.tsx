@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { AIDocumentModal } from '@/components/shared/AIDocumentModal'
 import { buildMinutesPrompt } from '@/lib/meetingMinutes'
 import { generateMinutesPdf } from '@/lib/pdf'
+import { useVitalInformationByMeeting } from '@/hooks/useVitalInformation'
 
 interface MeetingMinutesButtonProps {
   meeting: Record<string, unknown>
@@ -13,12 +14,19 @@ interface MeetingMinutesButtonProps {
 export function MeetingMinutesButton({ meeting, meetingType }: MeetingMinutesButtonProps) {
   const [open, setOpen] = useState(false)
 
+  const partnership = meeting.partnership as { id: string } | null
+  const { data: vitalInfo = [] } = useVitalInformationByMeeting(
+    partnership?.id ?? null,
+    meeting.id as string | undefined,
+    meetingType,
+  )
+
   const hasContent = Boolean(meeting.agenda || meeting.minutes || meeting.action_points)
   if (!hasContent) return null
 
   const title = meeting.title as string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const prompt = buildMinutesPrompt(meeting as any, meetingType)
+  const prompt = buildMinutesPrompt(meeting as any, meetingType, vitalInfo)
 
   return (
     <>

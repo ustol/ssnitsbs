@@ -22,12 +22,15 @@ function buildPrompt(data: ScorecardData): string {
   const redRows = data.rows.filter(r => r.rag === 'red')
   const amberRows = data.rows.filter(r => r.rag === 'amber')
 
+  const vitalSuffix = (items: ScorecardData['rows'][number]['vitalInfo']) =>
+    items.length > 0 ? `; vital info: ${items.map(v => v.subject).join(', ')}` : ''
+
   const redLines = redRows.map(r => {
     const issues: string[] = []
     if (r.daysSinceLastMeeting === null) issues.push('no meetings ever recorded')
     else if (r.daysSinceLastMeeting >= 60) issues.push(`no meeting for ${r.daysSinceLastMeeting} days`)
     if (r.daysInCurrentStatus !== null && r.daysInCurrentStatus >= 90) issues.push(`stuck in "${r.status?.name ?? 'current status'}" for ${r.daysInCurrentStatus} days`)
-    return `  • ${r.title} [${r.status?.name ?? 'No Status'}] — ${issues.join('; ')}`
+    return `  • ${r.title} [${r.status?.name ?? 'No Status'}] — ${issues.join('; ')}${vitalSuffix(r.vitalInfo)}`
   }).join('\n')
 
   const amberLines = amberRows.map(r => {
@@ -35,7 +38,7 @@ function buildPrompt(data: ScorecardData): string {
     if (r.daysSinceLastMeeting === null) issues.push('no meetings recorded')
     else if (r.daysSinceLastMeeting >= 30) issues.push(`no meeting in ${r.daysSinceLastMeeting} days`)
     if (r.daysInCurrentStatus !== null && r.daysInCurrentStatus >= 60) issues.push(`${r.daysInCurrentStatus} days in current status`)
-    return `  • ${r.title} — ${issues.join('; ')}`
+    return `  • ${r.title} — ${issues.join('; ')}${vitalSuffix(r.vitalInfo)}`
   }).join('\n')
 
   return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.

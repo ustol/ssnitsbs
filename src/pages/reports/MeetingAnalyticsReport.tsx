@@ -25,7 +25,10 @@ function buildPrompt(data: MeetingData): string {
     .join('\n')
 
   const partnershipLines = data.partnershipStats.slice(0, 12)
-    .map(p => `  • ${p.title}: ${p.total} total (${p.extCount} ext, ${p.intCount} int)${p.daysSinceLastMeeting !== null ? `, last ${p.daysSinceLastMeeting}d ago` : ', never met'}`)
+    .map(p => {
+      const vital = p.vitalInfo.length > 0 ? `; vital info: ${p.vitalInfo.map(v => v.subject).join(', ')}` : ''
+      return `  • ${p.title}: ${p.total} total (${p.extCount} ext, ${p.intCount} int)${p.daysSinceLastMeeting !== null ? `, last ${p.daysSinceLastMeeting}d ago` : ', never met'}${vital}`
+    })
     .join('\n')
 
   return `Write a formal internal memorandum from the Special Business Support Team to the DDG, Operations and Benefits, SSNIT.

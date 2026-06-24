@@ -118,11 +118,19 @@ export function Reports() {
       .map(s => `    ${s.name}: GHS ${s.value.toLocaleString()}`)
       .join('\n')
 
+    const vitalInfoLines = (execData?.rows ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .flatMap((p: any) => (p.vitalInfo ?? []).map((v: { date: string; subject: string; details: string | null }) => ({ partnership: p.title as string, ...v })))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10)
+      .map(v => `    • [${v.date}] ${v.partnership} — ${v.subject}${v.details ? `: ${v.details}` : ''}`)
+      .join('\n')
+
     return `Analyze this SSNIT Strategic Business Support data. Return ONLY a valid JSON object — no markdown, no code fences, no text before or after the JSON.
 
 Return exactly this structure:
 {
-  "executiveSummary": "3-4 sentences covering overall portfolio health, the most critical concern, and top positive",
+  "executiveSummary": "3-4 sentences covering overall portfolio health, the most critical concern, top positive, and any notable vital information",
   "partnershipInsight": "2 sentences on pipeline value distribution and RAG health",
   "meetingInsight": "2 sentences on meeting engagement frequency and partnership coverage",
   "bigPushInsight": "1-2 sentences on Big Push programme activity and coverage",
@@ -148,7 +156,10 @@ MEETINGS: ${analytics?.totalMeetings ?? 0} total (${analytics?.totalExt ?? 0} ex
 ACTION POINTS: ${apStats?.total ?? 0} total | ${apStats?.pending ?? 0} pending | ${apStats?.done ?? 0} done | ${apStats?.failed ?? 0} failed
   Completion rate: ${apStats?.total ? Math.round(((apStats.done) / apStats.total) * 100) : 0}%
 
-BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} contractors | Total activity recorded: ${bigPush.totalActivity.toLocaleString()}`
+BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} contractors | Total activity recorded: ${bigPush.totalActivity.toLocaleString()}
+
+RECENT VITAL INFORMATION (most recent across all partnerships):
+${vitalInfoLines || '    None recorded'}`
   }
 
   // Parse AI text response as JSON

@@ -1,6 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
+type VitalInfoItem = { date: string; subject: string; details: string | null }
+
+async function fetchVitalInfoByPartnership(): Promise<Record<string, VitalInfoItem[]>> {
+  const { data } = await supabase
+    .from('vital_information')
+    .select('partnership_id, date, subject, details')
+    .order('date', { ascending: false })
+  const map: Record<string, VitalInfoItem[]> = {}
+  for (const v of data ?? []) {
+    (map[v.partnership_id] ??= []).push({ date: v.date, subject: v.subject, details: v.details })
+  }
+  return map
+}
+
 // ─── External Stakeholder Report ──────────────────────────────────────────────
 export function useExtStakeholderReport() {
   return useQuery({
@@ -203,11 +217,12 @@ export function useExecutiveReport() {
   return useQuery({
     queryKey: ['report-executive'],
     queryFn: async () => {
-      const [partnerships, extMeetings, intMeetings, settings] = await Promise.all([
+      const [partnerships, extMeetings, intMeetings, settings, vitalInfoMap] = await Promise.all([
         supabase.from('partnerships').select('*, status:status_lookup(name, color)').order('created_at', { ascending: false }),
         supabase.from('external_meetings').select('id, partnership_id, meeting_date, title, location, action_points').order('meeting_date', { ascending: false }),
         supabase.from('internal_meetings').select('id, partnership_id, meeting_date, title, action_points').order('meeting_date', { ascending: false }),
         supabase.from('system_settings').select('key, value'),
+        fetchVitalInfoByPartnership(),
       ])
 
       const settingsMap: Record<string, string> = {}
@@ -219,7 +234,7 @@ export function useExecutiveReport() {
       const rows = (partnerships.data ?? []).map((p: any) => {
         const ext = (extMeetings.data ?? []).filter(m => m.partnership_id === p.id).length
         const int = (intMeetings.data ?? []).filter(m => m.partnership_id === p.id).length
-        return { ...p, extCount: ext, intCount: int, totalMeetings: ext + int }
+        return { ...p, extCount: ext, intCount: int, totalMeetings: ext + int, vitalInfo: vitalInfoMap[p.id] ?? [] }
       })
 
       // Status distribution
@@ -411,13 +426,14 @@ export function useHealthScorecardReport() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      const [partnerships, extMeetings, intMeetings] = await Promise.all([
+      const [partnerships, extMeetings, intMeetings, vitalInfoMap] = await Promise.all([
         supabase
           .from('partnerships')
           .select('id, title, organization, status_id, status_date, status:status_lookup(name, color)')
           .order('title'),
         supabase.from('external_meetings').select('id, partnership_id, meeting_date'),
         supabase.from('internal_meetings').select('id, partnership_id, meeting_date'),
+        fetchVitalInfoByPartnership(),
       ])
 
       if (partnerships.error) throw partnerships.error
@@ -460,6 +476,7 @@ export function useHealthScorecardReport() {
           lastMeetingDate: lastMeeting,
           daysSinceLastMeeting,
           daysInCurrentStatus,
+          vitalInfo: vitalInfoMap[p.id] ?? [],
           rag,
         }
       })
@@ -490,7 +507,7 @@ export function usePipelineReport() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      const [partnerships, statusHistory, settings] = await Promise.all([
+      const [partnerships, statusHistory, settings, vitalInfoMap] = await Promise.all([
         supabase
           .from('partnerships')
           .select('id, title, organization, proposed_value, status_id, status_date, start_date, end_date, status:status_lookup(name, color)')
@@ -501,6 +518,7 @@ export function usePipelineReport() {
           .eq('entity_type', 'partnership')
           .order('created_at'),
         supabase.from('system_settings').select('key, value'),
+        fetchVitalInfoByPartnership(),
       ])
 
       if (partnerships.error) throw partnerships.error
@@ -566,6 +584,7 @@ export function usePipelineReport() {
           startDate: p.start_date,
           daysOpen: p.start_date ? dayDiff(p.start_date) : null,
           proposedValue: p.proposed_value ?? 0,
+          vitalInfo: vitalInfoMap[p.id] ?? [],
         }))
         .sort((a, b) => (b.daysOpen ?? -1) - (a.daysOpen ?? -1))
 
@@ -596,10 +615,11 @@ export function useMeetingAnalyticsReport() {
       cutoff90.setDate(cutoff90.getDate() - 90)
       const cutoff90Str = cutoff90.toISOString().slice(0, 10)
 
-      const [extMeetings, intMeetings, partnerships] = await Promise.all([
+      const [extMeetings, intMeetings, partnerships, vitalInfoMap] = await Promise.all([
         supabase.from('external_meetings').select('id, partnership_id, meeting_date').order('meeting_date', { ascending: false }),
         supabase.from('internal_meetings').select('id, partnership_id, meeting_date').order('meeting_date', { ascending: false }),
         supabase.from('partnerships').select('id, title').order('title'),
+        fetchVitalInfoByPartnership(),
       ])
 
       if (partnerships.error) throw partnerships.error
@@ -665,6 +685,7 @@ export function useMeetingAnalyticsReport() {
           total: s.extCount + s.intCount,
           lastMeetingDate: s.lastDate,
           daysSinceLastMeeting: s.lastDate ? dayDiff(s.lastDate) : null,
+          vitalInfo: vitalInfoMap[id] ?? [],
         }))
         .sort((a, b) => b.total - a.total)
 

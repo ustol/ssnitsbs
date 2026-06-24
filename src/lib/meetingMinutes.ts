@@ -14,12 +14,26 @@ interface MeetingForMinutes {
   subjects?: { subject: string; outcome: string | null }[] | null
 }
 
-export function buildMinutesPrompt(meeting: MeetingForMinutes, type: 'external' | 'internal'): string {
+interface VitalInfoItem {
+  date: string
+  subject: string
+  details: string | null
+}
+
+export function buildMinutesPrompt(
+  meeting: MeetingForMinutes,
+  type: 'external' | 'internal',
+  vitalInfo: VitalInfoItem[] = [],
+): string {
   const dateStr = meeting.meeting_date ? formatDate(meeting.meeting_date) : 'Not recorded'
   const attendees = (type === 'external' ? meeting.attendees_external : meeting.attendees_internal) || 'Not recorded'
 
   const subjectLines = type === 'internal' && meeting.subjects && meeting.subjects.length > 0
     ? meeting.subjects.map((s, i) => `  ${i + 1}. ${s.subject}${s.outcome ? ` — Outcome: ${s.outcome}` : ''}`).join('\n')
+    : null
+
+  const vitalInfoLines = vitalInfo.length > 0
+    ? vitalInfo.map(v => `  • [${formatDate(v.date)}] ${v.subject}${v.details ? ` — ${v.details}` : ''}`).join('\n')
     : null
 
   return `You are drafting official meeting minutes for SSNIT (Social Security and National Insurance Trust), Ghana, based strictly on the source material below. Do not invent names, figures, decisions, or facts that are not present or reasonably implied by the source. If a section has no underlying information, write "Not recorded" for that section instead of fabricating content.
@@ -39,7 +53,7 @@ ATTENDEES: ${attendees}
 [Expand the raw agenda into a clear list of topics covered]
 
 2. SUMMARY OF DISCUSSION
-[Detailed narrative of what was discussed, drawn strictly from the raw minutes/notes below]
+[Detailed narrative of what was discussed, drawn strictly from the raw minutes/notes below. Weave in any related vital information provided where relevant.]
 
 3. KEY DECISIONS & OUTCOMES
 [Decisions or outcomes reached, or "Not recorded" if none stated]
@@ -59,5 +73,8 @@ RAW MINUTES / NOTES:
 ${meeting.minutes || 'Not recorded'}
 
 RAW ACTION POINTS:
-${meeting.action_points || 'Not recorded'}${subjectLines ? `\n\nDISCUSSION SUBJECTS (structured):\n${subjectLines}` : ''}`
+${meeting.action_points || 'Not recorded'}${subjectLines ? `\n\nDISCUSSION SUBJECTS (structured):\n${subjectLines}` : ''}
+
+RELATED VITAL INFORMATION:
+${vitalInfoLines || 'None recorded'}`
 }

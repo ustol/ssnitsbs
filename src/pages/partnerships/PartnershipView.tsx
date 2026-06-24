@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2, CalendarCheck, Users, Share2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, CalendarCheck, Users, Share2, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePartnership, useDeletePartnership } from '@/hooks/usePartnerships'
+import { useVitalInformationList } from '@/hooks/useVitalInformation'
 import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,8 +28,11 @@ export function PartnershipView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: p, isLoading } = usePartnership(id!)
+  const { data: vitalInfoAll = [] } = useVitalInformationList()
   const deleteMutation = useDeletePartnership()
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const vitalInfo = vitalInfoAll.filter(v => v.partnership_id === id)
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href)
@@ -165,6 +170,40 @@ export function PartnershipView() {
           )}
         </div>
       )}
+
+      {/* Vital Information */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between py-3 px-5">
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <Info className="h-4 w-4 text-muted-foreground" />Vital Information
+          </CardTitle>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/vital-information">Add / View all</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="px-5 pb-4">
+          {vitalInfo.length === 0 ? (
+            <p className="text-xs text-zinc-400">No vital information recorded for this partnership yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {vitalInfo.slice(0, 5).map(v => (
+                <li key={v.id} className="flex flex-col gap-1 pb-3 border-b last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-zinc-400 shrink-0">{formatDate(v.date)}</span>
+                    <span className="text-[0.8125rem] font-medium text-zinc-800">{v.subject}</span>
+                    {(v.external_meeting || v.internal_meeting) && (
+                      <Badge variant={v.external_meeting ? 'brand' : 'info'}>
+                        {(v.external_meeting ?? v.internal_meeting)!.title}
+                      </Badge>
+                    )}
+                  </div>
+                  {v.details && <p className="text-xs text-zinc-500">{v.details}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <ConfirmDelete
         open={confirmDelete}
