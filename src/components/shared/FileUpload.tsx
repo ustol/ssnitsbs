@@ -1,7 +1,8 @@
 import { useRef, useCallback } from 'react'
+import { toast } from 'sonner'
 import { Image, Music, FileText, X, Star, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatBytes, getFileCategory } from '@/lib/storage'
+import { formatBytes, getFileCategory, MAX_FILE_SIZE, ALLOWED_MIME_TYPES } from '@/lib/storage'
 import type { PendingUpload } from '@/hooks/useMeetingAttachments'
 
 interface FileUploadProps {
@@ -9,17 +10,7 @@ interface FileUploadProps {
   onChange: (files: PendingUpload[]) => void
 }
 
-const ACCEPT = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
-  'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/x-m4a', 'audio/webm',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-].join(',')
+const ACCEPT = ALLOWED_MIME_TYPES.join(',')
 
 function FileIcon({ type }: { type: 'image' | 'audio' | 'document' }) {
   if (type === 'image') return <Image size={18} className="text-blue-500" />
@@ -32,12 +23,21 @@ export function FileUpload({ files, onChange }: FileUploadProps) {
 
   const addFiles = useCallback((raw: FileList | null) => {
     if (!raw) return
-    const added: PendingUpload[] = Array.from(raw).map(file => {
+    const added: PendingUpload[] = []
+    for (const file of Array.from(raw)) {
+      if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+        toast.error(`"${file.name}" is not a supported file type`)
+        continue
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`"${file.name}" exceeds the ${formatBytes(MAX_FILE_SIZE)} size limit`)
+        continue
+      }
       const type = getFileCategory(file.type)
       const previewUrl = type === 'image' ? URL.createObjectURL(file) : null
-      return { file, previewUrl, type, isDisplay: false }
-    })
-    onChange([...files, ...added])
+      added.push({ file, previewUrl, type, isDisplay: false })
+    }
+    if (added.length > 0) onChange([...files, ...added])
   }, [files, onChange])
 
   const remove = (idx: number) => {

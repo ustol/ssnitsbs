@@ -65,12 +65,26 @@ export function useCreateExternalMeeting() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<ExternalMeeting>) => {
+      if (values.title && values.partnership_id && values.meeting_date) {
+        const { data: existing } = await supabase
+          .from('external_meetings')
+          .select('id')
+          .ilike('title', values.title)
+          .eq('partnership_id', values.partnership_id)
+          .eq('meeting_date', values.meeting_date)
+          .limit(1)
+        if (existing && existing.length > 0) throw new Error(`A meeting titled "${values.title}" already exists for this partnership on this date`)
+      }
       const { data: { user } } = await supabase.auth.getUser()
       const { data, error } = await supabase.from('external_meetings').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error
       return data
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [EXT_KEY] }); toast.success('Meeting created') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [EXT_KEY] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Meeting created')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 }
@@ -86,6 +100,7 @@ export function useUpdateExternalMeeting() {
     onSuccess: (_data: ExternalMeeting, { id }) => {
       qc.invalidateQueries({ queryKey: [EXT_KEY] })
       qc.invalidateQueries({ queryKey: [EXT_KEY, id] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting updated')
     },
     onError: (e: Error) => toast.error(e.message),
@@ -99,7 +114,11 @@ export function useDeleteExternalMeeting() {
       const { error } = await supabase.from('external_meetings').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [EXT_KEY] }); toast.success('Meeting deleted') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [EXT_KEY] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Meeting deleted')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 }
@@ -116,12 +135,26 @@ export function useCreateInternalMeeting() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<InternalMeeting>) => {
+      if (values.title && values.partnership_id && values.meeting_date) {
+        const { data: existing } = await supabase
+          .from('internal_meetings')
+          .select('id')
+          .ilike('title', values.title)
+          .eq('partnership_id', values.partnership_id)
+          .eq('meeting_date', values.meeting_date)
+          .limit(1)
+        if (existing && existing.length > 0) throw new Error(`A meeting titled "${values.title}" already exists for this partnership on this date`)
+      }
       const { data: { user } } = await supabase.auth.getUser()
       const { data, error } = await supabase.from('internal_meetings').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error
       return data
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [INT_KEY] }); toast.success('Meeting created') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [INT_KEY] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Meeting created')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 }
@@ -137,6 +170,7 @@ export function useUpdateInternalMeeting() {
     onSuccess: (_data: InternalMeeting, { id }) => {
       qc.invalidateQueries({ queryKey: [INT_KEY] })
       qc.invalidateQueries({ queryKey: [INT_KEY, id] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting updated')
     },
     onError: (e: Error) => toast.error(e.message),
@@ -150,7 +184,11 @@ export function useDeleteInternalMeeting() {
       const { error } = await supabase.from('internal_meetings').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [INT_KEY] }); toast.success('Meeting deleted') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [INT_KEY] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success('Meeting deleted')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 }

@@ -27,6 +27,7 @@ function StatusUpdateCell({ currentStatusId, currentDate, statuses, onSave }: {
   const [statusId, setStatusId] = useState(currentStatusId ?? NONE)
   const [date, setDate] = useState(currentDate ?? '')
   const [saving, setSaving] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
     setStatusId(currentStatusId ?? NONE)
@@ -62,6 +63,7 @@ function StatusUpdateCell({ currentStatusId, currentDate, statuses, onSave }: {
         value={date}
         onChange={e => setDate(e.target.value)}
         disabled={saving}
+        max={today}
         className="h-7 text-xs w-[130px] px-2"
       />
       <Button

@@ -24,6 +24,11 @@ export function useCreateExternalStakeholder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<ExternalStakeholder>) => {
+      const name = (values.name ?? '').trim()
+      if (name) {
+        const { data: existing } = await supabase.from('external_stakeholders').select('id').ilike('name', name).limit(1)
+        if (existing && existing.length > 0) throw new Error(`A stakeholder named "${name}" already exists`)
+      }
       const { data, error } = await supabase.from('external_stakeholders').insert(values).select().single()
       if (error) throw error
       return data
@@ -76,6 +81,11 @@ export function useCreateInternalStakeholder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<InternalStakeholder>) => {
+      const name = (values.name ?? '').trim()
+      if (name) {
+        const { data: existing } = await supabase.from('internal_stakeholders').select('id').ilike('name', name).limit(1)
+        if (existing && existing.length > 0) throw new Error(`A stakeholder named "${name}" already exists`)
+      }
       const { data, error } = await supabase.from('internal_stakeholders').insert(values).select().single()
       if (error) throw error
       return data

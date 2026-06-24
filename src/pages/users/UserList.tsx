@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getInitials, formatDate } from '@/lib/utils'
+import { getInitials, formatDate, isValidPhone } from '@/lib/utils'
 import type { Profile } from '@/types/database'
 
 const editSchema = z.object({
@@ -28,7 +28,7 @@ const createSchema = z.object({
   surname: z.string().min(1, 'Surname is required'),
   first_name: z.string().min(1, 'First name is required'),
   other_names: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine(v => !v || isValidPhone(v), 'Enter a valid phone number'),
   email: z.string().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.enum(['admin', 'manager', 'viewer']),
@@ -216,14 +216,14 @@ export function UserList() {
 
       {/* ── Create dialog ── */}
       <Dialog open={createOpen} onOpenChange={open => !open && setCreateOpen(false)}>
-        <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>New User</DialogTitle>
           </DialogHeader>
           <Form {...createForm}>
             <form onSubmit={createForm.handleSubmit(onCreate)}>
               <div className="px-6 py-5 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FormField control={createForm.control} name="first_name" render={({ field }) => (
                     <FormItem>
                       <FormLabel>First Name <span className="text-destructive">*</span></FormLabel>
@@ -248,7 +248,7 @@ export function UserList() {
                   </FormItem>
                 )} />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FormField control={createForm.control} name="phone" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Phone <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel>

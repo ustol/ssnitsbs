@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
 import {
   useComplianceActivities,
   useCreateComplianceActivity,
@@ -21,14 +20,20 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/utils'
 
+const nonNegativeNumberString = (label: string) =>
+  z.string().optional().refine(
+    v => !v || (!isNaN(Number(v)) && Number(v) >= 0),
+    { message: `${label} must be a non-negative number` },
+  )
+
 const schema = z.object({
   establishment_name: z.string().min(1, 'Establishment name is required'),
   er_no: z.string().optional(),
   date_registered: z.string().optional(),
   coverable_date: z.string().optional(),
-  labour_force: z.string().optional(),
-  actual_contributions: z.string().optional(),
-  penalty: z.string().optional(),
+  labour_force: nonNegativeNumberString('Labour force'),
+  actual_contributions: nonNegativeNumberString('Actual contributions'),
+  penalty: nonNegativeNumberString('Penalty'),
   enforcement_branch: z.string().optional(),
   remarks: z.string().optional(),
 })
@@ -207,14 +212,12 @@ export function LabourMinistry() {
     try {
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, payload })
-        toast.success('Establishment updated')
       } else {
         await createMutation.mutateAsync(payload)
-        toast.success('Establishment added')
       }
       closeDialog()
-    } catch (err) {
-      toast.error((err as Error).message)
+    } catch {
+      // error toast is handled by the mutation hook
     } finally {
       setIsSaving(false)
     }
@@ -316,8 +319,7 @@ export function LabourMinistry() {
         onConfirm={() => {
           if (!deleteTarget) return
           deleteMutation.mutate(deleteTarget.id, {
-            onSuccess: () => { toast.success('Deleted'); setDeleteTarget(null) },
-            onError: err => { toast.error((err as Error).message) },
+            onSuccess: () => setDeleteTarget(null),
           })
         }}
         loading={deleteMutation.isPending}

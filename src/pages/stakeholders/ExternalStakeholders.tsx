@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
+import { isValidPhone } from '@/lib/utils'
 import type { ExternalStakeholder } from '@/types/database'
 
 const schema = z.object({
@@ -24,7 +25,7 @@ const schema = z.object({
   title: z.string().optional(),
   organization: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine(v => !v || isValidPhone(v), 'Enter a valid phone number'),
   notes: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
@@ -118,7 +119,7 @@ export function ExternalStakeholders() {
       />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>{editTarget ? 'Edit Stakeholder' : 'Add External Stakeholder'}</DialogTitle>
           </DialogHeader>
@@ -132,7 +133,7 @@ export function ExternalStakeholders() {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField control={form.control} name="title" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Contact Person</FormLabel>

@@ -52,8 +52,8 @@ function RegistrationModal({ project, existing, onClose }: RegModalProps) {
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-xl border shadow-xl overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b">
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-xl border shadow-xl overflow-hidden flex flex-col max-h-[88vh]">
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0">
           <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
             <UserPlus size={15} className="text-blue-600" />
           </div>
@@ -65,7 +65,7 @@ function RegistrationModal({ project, existing, onClose }: RegModalProps) {
             <X size={15} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">Count (registrations) <span className="text-red-400">*</span></label>
             <Input type="number" min="0" step="1" placeholder="0" value={value}
@@ -134,8 +134,8 @@ function InspectionModal({ project, existing, onClose }: InspModalProps) {
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-xl border shadow-xl overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b">
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-xl border shadow-xl overflow-hidden flex flex-col max-h-[88vh]">
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0">
           <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
             <ClipboardCheck size={15} className="text-purple-600" />
           </div>
@@ -147,7 +147,7 @@ function InspectionModal({ project, existing, onClose }: InspModalProps) {
             <X size={15} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">Inspection Date <span className="text-red-400">*</span></label>
             <Input type="date" value={date} onChange={e => setDate(e.target.value)}

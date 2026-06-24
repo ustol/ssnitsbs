@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
 export interface ComplianceActivity {
@@ -47,7 +48,8 @@ export function useCreateComplianceActivity() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [QK] }); toast.success('Compliance activity added') },
+    onError: (e: Error) => toast.error(e.message),
   })
 }
 
@@ -64,7 +66,8 @@ export function useUpdateComplianceActivity() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [QK] }); toast.success('Compliance activity updated') },
+    onError: (e: Error) => toast.error(e.message),
   })
 }
 
@@ -75,6 +78,7 @@ export function useDeleteComplianceActivity() {
       const { error } = await supabase.from('compliance_activities').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [QK] }); toast.success('Compliance activity deleted') },
+    onError: (e: Error) => toast.error(e.message),
   })
 }

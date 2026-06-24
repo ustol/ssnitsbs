@@ -57,6 +57,11 @@ export function useCreatePartnership() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Partial<Partnership>) => {
+      const title = (values.title ?? '').trim()
+      if (title) {
+        const { data: existing } = await supabase.from('partnerships').select('id').ilike('title', title).limit(1)
+        if (existing && existing.length > 0) throw new Error(`A partnership named "${title}" already exists`)
+      }
       const { data: { user } } = await supabase.auth.getUser()
       const { data, error } = await supabase.from('partnerships').insert({ ...values, created_by: user?.id ?? null }).select().single()
       if (error) throw error

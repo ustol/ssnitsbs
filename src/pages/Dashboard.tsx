@@ -150,8 +150,8 @@ export function Dashboard() {
   const { data: stats,    isLoading: statsLoading   } = useDashboardStats()
   const { data: meetings, isLoading: meetingsLoading } = useRecentMeetings()
   const { data: apStats } = useActionPointStats()
-  const { data: execData } = useExecutiveReport()
-  const { data: ragData  } = useHealthScorecardReport()
+  const { data: execData, isLoading: execLoading } = useExecutiveReport()
+  const { data: ragData,  isLoading: ragLoading  } = useHealthScorecardReport()
 
   const { data: projects   = [] } = useDataWarehouse()
   const { data: activities = [] } = useProjectActivities()
@@ -213,7 +213,7 @@ export function Dashboard() {
           sub={execData ? `${formatNumber(execData.totalProposed)} · best ${formatCompact(calcProjection(execData.totalProposed, bestPct))}` : undefined}
           icon={<DollarSign className="h-5 w-5" />}
           accent="brand"
-          loading={!execData && statsLoading}
+          loading={execLoading}
         />
 
         <HeroKPI
@@ -307,7 +307,11 @@ export function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="p-4">
-            {execData?.valueByStatus?.length ? (
+            {execLoading ? (
+              <div className="flex items-center justify-center" style={{ height: 200 }}>
+                <Skeleton className="h-full w-full rounded-lg" />
+              </div>
+            ) : execData?.valueByStatus?.length ? (
               <>
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={execData.valueByStatus} layout="vertical" margin={{ left: 4, right: 16 }}>
@@ -346,7 +350,11 @@ export function Dashboard() {
             <p className="text-xs text-muted-foreground mt-0.5">RAG status · all partnerships</p>
           </CardHeader>
           <CardContent className="p-4">
-            {ragPie.length ? (
+            {ragLoading ? (
+              <div className="flex items-center justify-center" style={{ height: 240 }}>
+                <Skeleton className="h-full w-full rounded-lg" />
+              </div>
+            ) : ragPie.length ? (
               <>
                 <div className="relative" style={{ height: 140 }}>
                   <ResponsiveContainer width="100%" height="100%">

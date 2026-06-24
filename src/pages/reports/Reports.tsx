@@ -72,8 +72,8 @@ function AIInsight({ text, loading }: { text?: string; loading?: boolean }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export function Reports() {
-  const { data: execData  } = useExecutiveReport()
-  const { data: ragData   } = useHealthScorecardReport()
+  const { data: execData, isLoading: execLoading } = useExecutiveReport()
+  const { data: ragData,  isLoading: ragLoading  } = useHealthScorecardReport()
   const { data: analytics } = useMeetingAnalyticsReport()
   const { data: projects  = [] } = useDataWarehouse()
   const { data: activities = [] } = useProjectActivities()
@@ -328,7 +328,9 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               <p className="text-xs text-muted-foreground mt-0.5">Proposed value (GHS) per partnership stage</p>
             </CardHeader>
             <CardContent className="p-4">
-              {execData?.valueByStatus?.length ? (
+              {execLoading ? (
+                <div className="flex items-center justify-center h-48"><Skeleton className="h-full w-full rounded-lg" /></div>
+              ) : execData?.valueByStatus?.length ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={execData.valueByStatus} layout="vertical" margin={{ left: 4, right: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
@@ -345,7 +347,7 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               )}
               {/* Projection strip */}
               {execData?.totalProposed != null && (
-                <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3">
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 border-t pt-3">
                   {[
                     { label: 'Full Pipeline',              value: execData.totalProposed,                              color: 'text-zinc-800'  },
                     { label: `Best Case (${bestPct}%)`,    value: calcProjection(execData.totalProposed, bestPct),     color: 'text-green-600' },
@@ -368,7 +370,9 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               <p className="text-xs text-muted-foreground mt-0.5">RAG status distribution</p>
             </CardHeader>
             <CardContent className="p-4">
-              {ragPie.length ? (
+              {ragLoading ? (
+                <div className="flex items-center justify-center h-52"><Skeleton className="h-full w-full rounded-lg" /></div>
+              ) : ragPie.length ? (
                 <>
                   <div className="relative" style={{ height: 160 }}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -462,13 +466,13 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               Data Warehouse <ChevronRight size={12} />
             </Link>
           </div>
-          <div className="grid grid-cols-3 divide-x divide-orange-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-orange-100">
             {[
               { label: 'Projects',       value: bigPush.totalProjects,                    icon: <HardHat    size={16} className="text-brand" /> },
               { label: 'Contractors',    value: bigPush.contractors,                      icon: <Users      size={16} className="text-brand" /> },
               { label: 'Total Activity', value: bigPush.totalActivity.toLocaleString(),   icon: <TrendingUp size={16} className="text-brand" /> },
             ].map(s => (
-              <div key={s.label} className="px-4 first:pl-0 last:pr-0 flex items-center gap-3">
+              <div key={s.label} className="px-4 py-2 first:pt-0 last:pb-0 sm:py-0 sm:first:pl-0 sm:last:pr-0 flex items-center gap-3">
                 <div className="rounded-lg bg-white border border-orange-100 p-2 shrink-0">{s.icon}</div>
                 <div>
                   <p className="text-xl font-bold text-zinc-900 tabular-nums leading-none">{s.value}</p>
@@ -493,7 +497,7 @@ BIG PUSH PROGRAMME: ${bigPush.totalProjects} projects | ${bigPush.contractors} c
               </Link>
             </CardHeader>
             <CardContent className="p-4">
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { label: 'Total',   value: apStats.total,   color: 'text-zinc-800',  bg: 'bg-zinc-50'  },
                   { label: 'Pending', value: apStats.pending, color: 'text-amber-700', bg: 'bg-amber-50' },

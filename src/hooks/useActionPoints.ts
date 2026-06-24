@@ -55,20 +55,14 @@ export function useSyncActionPoints() {
 
   return useMutation({
     mutationFn: async () => {
-      const [extRes, intRes] = await Promise.all([
-        supabase
-          .from('external_meetings')
-          .select('id, title, meeting_date, action_points')
-          .not('action_points', 'is', null)
-          .neq('action_points', ''),
-        supabase
-          .from('internal_meetings')
-          .select('id, title, meeting_date, action_points')
-          .not('action_points', 'is', null)
-          .neq('action_points', ''),
+      const [extRes, intRes, trackedRes] = await Promise.all([
+        supabase.from('external_meetings').select('id, title, meeting_date, action_points'),
+        supabase.from('internal_meetings').select('id, title, meeting_date, action_points'),
+        supabase.from('action_points').select('id, meeting_id, content, status, notes'),
       ])
 
       const rows: Omit<ActionPoint, 'id' | 'created_at' | 'updated_at' | 'notes'>[] = []
+      const currentContentByMeeting = new Map<string, Set<string>>()
 
       type MeetingRow = { id: string; title: string; meeting_date: string | null; action_points: string | null }
 
@@ -77,6 +71,7 @@ export function useSyncActionPoints() {
           .split('\n')
           .map(l => l.replace(/^[-•*]\s*/, '').trim())
           .filter(Boolean)
+        currentContentByMeeting.set(m.id, new Set(lines))
         for (const line of lines) {
           rows.push({
             meeting_id:    m.id,
@@ -91,6 +86,19 @@ export function useSyncActionPoints() {
 
       for (const m of (extRes.data ?? []) as MeetingRow[]) parseMeeting(m, 'external')
       for (const m of (intRes.data ?? []) as MeetingRow[]) parseMeeting(m, 'internal')
+
+      // Clean up rows orphaned by a wording edit or cleared text — only ones that were
+      // never actioned and have no notes, so completed/annotated history is never lost.
+      const orphanIds = (trackedRes.data ?? [])
+        .filter(t => {
+          const current = currentContentByMeeting.get(t.meeting_id)
+          return !current?.has(t.content) && t.status === 'pending' && !t.notes
+        })
+        .map(t => t.id)
+
+      if (orphanIds.length > 0) {
+        await supabase.from('action_points').delete().in('id', orphanIds)
+      }
 
       if (rows.length === 0) return
 

@@ -2,6 +2,20 @@ import { supabase } from './supabase'
 
 export const MEETING_BUCKET = 'meeting-attachments'
 
+export const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
+
+export const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
+  'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/x-m4a', 'audio/webm',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+]
+
 export function getFileCategory(mimeType: string): 'image' | 'audio' | 'document' {
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType.startsWith('audio/') || mimeType.startsWith('video/')) return 'audio'

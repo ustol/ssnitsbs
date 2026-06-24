@@ -41,3 +41,8 @@ export function getInitials(name: string): string {
 export function calcProjection(proposed: number, pct: number): number {
   return Math.round(proposed * (pct / 100))
 }
+
+export function isValidPhone(value: string): boolean {
+  const digits = value.replace(/[\s\-()]/g, '')
+  return /^\+?\d{7,15}$/.test(digits)
+}

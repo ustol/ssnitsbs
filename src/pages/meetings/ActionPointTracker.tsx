@@ -194,7 +194,7 @@ export function ActionPointTracker() {
       />
 
       {/* ── Summary strip ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { label: 'Total',   value: items.length,  bg: 'bg-zinc-50',   text: 'text-zinc-800',  border: 'border-zinc-200'  },
           { label: 'Pending', value: pendingCount,   bg: 'bg-amber-50',  text: 'text-amber-700', border: 'border-amber-100' },
