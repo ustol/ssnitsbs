@@ -82,7 +82,7 @@ export function Login() {
             Partnerships.<br />Meetings.<br />Progress.
           </h1>
           <p className="text-[0.875rem] leading-relaxed max-w-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            Track strategic partnerships, manage stakeholder meetings, and monitor DDG feedback — all in one place.
+            Track strategic partnerships, manage stakeholder meetings, and monitor compliance activity — all in one place.
           </p>
 
           <div className="flex gap-6 pt-2">

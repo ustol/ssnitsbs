@@ -22,7 +22,6 @@ import { UserPerformanceReport } from '@/pages/reports/UserPerformanceReport'
 import { ExecutiveOverviewReport } from '@/pages/reports/ExecutiveOverviewReport'
 import { PipelineReport } from '@/pages/reports/PipelineReport'
 import { MeetingAnalyticsReport } from '@/pages/reports/MeetingAnalyticsReport'
-import { DDGIntelligenceReport } from '@/pages/reports/DDGIntelligenceReport'
 import { StatusTimeReport } from '@/pages/reports/StatusTimeReport'
 import { Settings } from '@/pages/settings/Settings'
 import { UserList } from '@/pages/users/UserList'
@@ -94,7 +93,6 @@ export default function App() {
           <Route path="reports/executive" element={<ExecutiveOverviewReport />} />
           <Route path="reports/pipeline" element={<PipelineReport />} />
           <Route path="reports/meeting-analytics" element={<MeetingAnalyticsReport />} />
-          <Route path="reports/ddg-intelligence" element={<DDGIntelligenceReport />} />
           <Route path="reports/status-time" element={<StatusTimeReport />} />
           {/* Data Warehouse */}
           <Route path="data-warehouse" element={<DataWarehouse />} />

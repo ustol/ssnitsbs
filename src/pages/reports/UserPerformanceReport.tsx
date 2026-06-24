@@ -51,7 +51,7 @@ SYSTEM TOTALS:
 export function UserPerformanceReport() {
   const { data, isLoading, error } = useUserPerformanceReport()
 
-  const totalAll = (data?.totals.partnerships ?? 0) + (data?.totals.ext ?? 0) + (data?.totals.int ?? 0) + (data?.totals.ddg ?? 0)
+  const totalAll = (data?.totals.partnerships ?? 0) + (data?.totals.ext ?? 0) + (data?.totals.int ?? 0)
   const mostActive = data?.users[0]
 
   const pieData = (data?.users ?? [])
@@ -112,8 +112,7 @@ export function UserPerformanceReport() {
                       <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="Partnerships"   stackId="a" fill="#E8621A" />
                       <Bar dataKey="Ext Meetings"   stackId="a" fill="#3b82f6" />
-                      <Bar dataKey="Int Meetings"   stackId="a" fill="#10b981" />
-                      <Bar dataKey="DDG"            stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Int Meetings"   stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartWrapper>
@@ -152,12 +151,11 @@ export function UserPerformanceReport() {
           {/* Summary by module */}
           <div className="space-y-3">
             <SectionTitle>System Totals by Module</SectionTitle>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { label: 'Partnerships',     total: data.totals.partnerships, attributed: data.attributed.partnerships, color: '#E8621A' },
                 { label: 'Ext. Meetings',    total: data.totals.ext,          attributed: data.attributed.ext,          color: '#3b82f6' },
                 { label: 'Int. Meetings',    total: data.totals.int,          attributed: data.attributed.int,          color: '#10b981' },
-                { label: 'DDG Feedback',     total: data.totals.ddg,          attributed: data.attributed.ddg,          color: '#f59e0b' },
               ].map(m => (
                 <div key={m.label} className="p-3 rounded-lg border bg-zinc-50 space-y-1">
                   <p className="text-xs text-zinc-500 font-medium">{m.label}</p>
@@ -171,7 +169,7 @@ export function UserPerformanceReport() {
           <div className="space-y-3">
             <SectionTitle>User Activity Detail</SectionTitle>
             <ReportTable
-              headers={['User', 'Role', 'Email', 'Partnerships', 'Ext. Meetings', 'Int. Meetings', 'DDG Feedback', 'Attributed Total']}
+              headers={['User', 'Role', 'Email', 'Partnerships', 'Ext. Meetings', 'Int. Meetings', 'Attributed Total']}
               rows={data.users.map(u => [
                 u.full_name ?? '—',
                 u.role ?? '—',
@@ -179,7 +177,6 @@ export function UserPerformanceReport() {
                 u.partnerships_n,
                 u.ext_n,
                 u.int_n,
-                u.ddg_n,
                 u.total,
               ])}
             />

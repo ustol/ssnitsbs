@@ -103,7 +103,7 @@ export function ExecutiveOverviewReport() {
             <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="bg-zinc-50 border-b">
-                  {['RAG', 'Partnership', 'Organisation', 'Status', 'Days in Status', 'Last Meeting', 'Days Since Mtg', 'Open DDG'].map(h => (
+                  {['RAG', 'Partnership', 'Organisation', 'Status', 'Days in Status', 'Last Meeting', 'Days Since Mtg'].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-zinc-600">{h}</th>
                   ))}
                 </tr>
@@ -151,18 +151,12 @@ export function ExecutiveOverviewReport() {
                       }`}>
                         {row.daysSinceLastMeeting !== null ? `${row.daysSinceLastMeeting}d` : 'Never'}
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-center">
-                        {row.openDDGCount > 0
-                          ? <span className="inline-block min-w-[1.5rem] font-semibold text-xs px-1.5 py-0.5 rounded-full bg-red-50 text-red-700">{row.openDDGCount}</span>
-                          : <span className="text-zinc-300">—</span>
-                        }
-                      </td>
                     </tr>
                   )
                 })}
                 {data.rows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-6 text-center text-xs text-zinc-400">No partnerships found</td>
+                    <td colSpan={7} className="px-3 py-6 text-center text-xs text-zinc-400">No partnerships found</td>
                   </tr>
                 )}
               </tbody>

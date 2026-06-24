@@ -148,12 +148,11 @@ export function useUserPerformanceReport() {
   return useQuery({
     queryKey: ['report-user-performance'],
     queryFn: async () => {
-      const [profiles, partnerships, extMeetings, intMeetings, feedback] = await Promise.all([
+      const [profiles, partnerships, extMeetings, intMeetings] = await Promise.all([
         supabase.from('profiles').select('id, full_name, email, role'),
         supabase.from('partnerships').select('id, created_by'),
         supabase.from('external_meetings').select('id, created_by'),
         supabase.from('internal_meetings').select('id, created_by'),
-        supabase.from('ddg_feedback').select('id, created_by'),
       ])
 
       if (profiles.error) throw profiles.error
@@ -161,14 +160,12 @@ export function useUserPerformanceReport() {
       const allPartnerships = partnerships.data ?? []
       const allExt = extMeetings.data ?? []
       const allInt = intMeetings.data ?? []
-      const allDdg = feedback.data ?? []
 
       const users = (profiles.data ?? []).map(p => {
         const partnerships_n = allPartnerships.filter(x => x.created_by === p.id).length
         const ext_n = allExt.filter(x => x.created_by === p.id).length
         const int_n = allInt.filter(x => x.created_by === p.id).length
-        const ddg_n = allDdg.filter(x => x.created_by === p.id).length
-        return { ...p, partnerships_n, ext_n, int_n, ddg_n, total: partnerships_n + ext_n + int_n + ddg_n }
+        return { ...p, partnerships_n, ext_n, int_n, total: partnerships_n + ext_n + int_n }
       }).sort((a, b) => b.total - a.total)
 
       const chartData = users
@@ -178,7 +175,6 @@ export function useUserPerformanceReport() {
           Partnerships: u.partnerships_n,
           'Ext Meetings': u.ext_n,
           'Int Meetings': u.int_n,
-          DDG: u.ddg_n,
         }))
 
       // Totals across all records — attributed and unattributed
@@ -186,19 +182,16 @@ export function useUserPerformanceReport() {
         partnerships: allPartnerships.length,
         ext: allExt.length,
         int: allInt.length,
-        ddg: allDdg.length,
       }
       const attributed = {
         partnerships: allPartnerships.filter(x => x.created_by).length,
         ext: allExt.filter(x => x.created_by).length,
         int: allInt.filter(x => x.created_by).length,
-        ddg: allDdg.filter(x => x.created_by).length,
       }
       const unattributed =
         (totals.partnerships - attributed.partnerships) +
         (totals.ext - attributed.ext) +
-        (totals.int - attributed.int) +
-        (totals.ddg - attributed.ddg)
+        (totals.int - attributed.int)
 
       return { users, chartData, totals, attributed, unattributed }
     },
@@ -210,11 +203,10 @@ export function useExecutiveReport() {
   return useQuery({
     queryKey: ['report-executive'],
     queryFn: async () => {
-      const [partnerships, extMeetings, intMeetings, ddgFeedback, settings] = await Promise.all([
+      const [partnerships, extMeetings, intMeetings, settings] = await Promise.all([
         supabase.from('partnerships').select('*, status:status_lookup(name, color)').order('created_at', { ascending: false }),
         supabase.from('external_meetings').select('id, partnership_id, meeting_date, title, location, action_points').order('meeting_date', { ascending: false }),
         supabase.from('internal_meetings').select('id, partnership_id, meeting_date, title, action_points').order('meeting_date', { ascending: false }),
-        supabase.from('ddg_feedback').select('id, summary, feedback_type, is_actioned, received_date').order('received_date', { ascending: false }).limit(10),
         supabase.from('system_settings').select('key, value'),
       ])
 
@@ -278,13 +270,6 @@ export function useExecutiveReport() {
         { label: `Worst Case (${worstPct}%)`, value: Math.round(totalProposed * worstPct / 100) },
       ]
 
-      const ddgItems = (ddgFeedback.data ?? []).map(f => ({
-        summary: f.summary as string,
-        type: f.feedback_type as string,
-        actioned: f.is_actioned as boolean,
-        date: f.received_date as string,
-      }))
-
       const extMeetingDetails = (extMeetings.data ?? []).slice(0, 15).map(m => ({
         title: m.title as string,
         date: m.meeting_date as string,
@@ -302,7 +287,7 @@ export function useExecutiveReport() {
         partnership: rows.find((p: any) => p.id === m.partnership_id)?.title ?? null,
       }))
 
-      return { rows, byStatus, valueByStatus, topByMeetings, monthlyMeetings, projections, totalProposed, bestPct, worstPct, ddgItems, extMeetingDetails, intMeetingDetails }
+      return { rows, byStatus, valueByStatus, topByMeetings, monthlyMeetings, projections, totalProposed, bestPct, worstPct, extMeetingDetails, intMeetingDetails }
     },
   })
 }
@@ -426,14 +411,13 @@ export function useHealthScorecardReport() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      const [partnerships, extMeetings, intMeetings, ddgPending] = await Promise.all([
+      const [partnerships, extMeetings, intMeetings] = await Promise.all([
         supabase
           .from('partnerships')
           .select('id, title, organization, status_id, status_date, status:status_lookup(name, color)')
           .order('title'),
         supabase.from('external_meetings').select('id, partnership_id, meeting_date'),
         supabase.from('internal_meetings').select('id, partnership_id, meeting_date'),
-        supabase.from('ddg_feedback').select('id, partnership_id').eq('is_actioned', false),
       ])
 
       if (partnerships.error) throw partnerships.error
@@ -449,31 +433,21 @@ export function useHealthScorecardReport() {
         if (!existing || m.meeting_date > existing) lastMeetingMap[m.partnership_id] = m.meeting_date
       }
 
-      // Open DDG count per partnership
-      const openDDGMap: Record<string, number> = {}
-      for (const f of ddgPending.data ?? []) {
-        if (!f.partnership_id) continue
-        openDDGMap[f.partnership_id] = (openDDGMap[f.partnership_id] ?? 0) + 1
-      }
-
       const rows = (partnerships.data ?? []).map(p => {
         const lastMeeting = lastMeetingMap[p.id] ?? null
         const daysSinceLastMeeting = lastMeeting ? dayDiff(lastMeeting) : null
         const daysInCurrentStatus = p.status_date ? dayDiff(p.status_date) : null
-        const openDDGCount = openDDGMap[p.id] ?? 0
 
         let rag: 'red' | 'amber' | 'green' = 'green'
         if (
           (daysSinceLastMeeting !== null && daysSinceLastMeeting >= 60) ||
-          (daysInCurrentStatus !== null && daysInCurrentStatus >= 90) ||
-          openDDGCount >= 3
+          (daysInCurrentStatus !== null && daysInCurrentStatus >= 90)
         ) {
           rag = 'red'
         } else if (
           daysSinceLastMeeting === null ||
           daysSinceLastMeeting >= 30 ||
-          (daysInCurrentStatus !== null && daysInCurrentStatus >= 60) ||
-          openDDGCount >= 1
+          (daysInCurrentStatus !== null && daysInCurrentStatus >= 60)
         ) {
           rag = 'amber'
         }
@@ -486,7 +460,6 @@ export function useHealthScorecardReport() {
           lastMeetingDate: lastMeeting,
           daysSinceLastMeeting,
           daysInCurrentStatus,
-          openDDGCount,
           rag,
         }
       })
@@ -748,85 +721,6 @@ export function useMeetingAnalyticsReport() {
         avgMeetingsPerPartnership,
         pctNoMeeting30d,
       }
-    },
-  })
-}
-
-// ─── DDG Intelligence Report ──────────────────────────────────────────────────
-export function useDDGIntelligenceReport() {
-  return useQuery({
-    queryKey: ['report-ddg-intelligence'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('ddg_feedback')
-        .select('id, feedback_type, partnership_id, is_actioned, received_date, summary, partnership:partnerships(id, title)')
-        .order('received_date', { ascending: false })
-      if (error) throw error
-
-      const items = data ?? []
-      const total = items.length
-      const pending = items.filter(f => !f.is_actioned).length
-      const actioned = total - pending
-      const actionRate = total > 0 ? Math.round((actioned / total) * 100) : 0
-
-      // By feedback type
-      const typeMap: Record<string, { pending: number; actioned: number }> = {}
-      for (const f of items) {
-        const k = f.feedback_type ?? 'Unknown'
-        typeMap[k] ??= { pending: 0, actioned: 0 }
-        if (f.is_actioned) typeMap[k].actioned++
-        else typeMap[k].pending++
-      }
-      const byType = Object.entries(typeMap)
-        .map(([name, v]) => ({ name, Pending: v.pending, Actioned: v.actioned, total: v.pending + v.actioned }))
-        .sort((a, b) => b.total - a.total)
-
-      // By partnership
-      const pMap: Record<string, { title: string; pending: number; actioned: number }> = {}
-      for (const f of items) {
-        if (!f.partnership_id) continue
-        const title = (f.partnership as { title: string } | null)?.title ?? 'Unknown'
-        pMap[f.partnership_id] ??= { title, pending: 0, actioned: 0 }
-        if (f.is_actioned) pMap[f.partnership_id].actioned++
-        else pMap[f.partnership_id].pending++
-      }
-      const byPartnership = Object.values(pMap)
-        .map(v => ({ title: v.title, Pending: v.pending, Actioned: v.actioned, total: v.pending + v.actioned }))
-        .sort((a, b) => b.total - a.total)
-
-      // Monthly trend
-      const monthlyMap: Record<string, { pending: number; actioned: number }> = {}
-      for (const f of items) {
-        if (!f.received_date) continue
-        const k = f.received_date.slice(0, 7)
-        monthlyMap[k] ??= { pending: 0, actioned: 0 }
-        if (f.is_actioned) monthlyMap[k].actioned++
-        else monthlyMap[k].pending++
-      }
-      const monthlyTrend = Object.entries(monthlyMap)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-12)
-        .map(([k, v]) => ({
-          month: new Date(k + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-          Pending: v.pending,
-          Actioned: v.actioned,
-        }))
-
-      // Full table: pending first, then by date descending
-      const tableRows = [...items]
-        .sort((a, b) => {
-          if (a.is_actioned !== b.is_actioned) return a.is_actioned ? 1 : -1
-          return (b.received_date ?? '').localeCompare(a.received_date ?? '')
-        })
-        .map(f => ({
-          date: f.received_date ?? '—',
-          summary: f.summary,
-          type: f.feedback_type ?? '—',
-          partnership: (f.partnership as { title: string } | null)?.title ?? '—',
-          actioned: f.is_actioned,
-        }))
-
-      return { total, pending, actioned, actionRate, byType, byPartnership, monthlyTrend, tableRows }
     },
   })
 }
