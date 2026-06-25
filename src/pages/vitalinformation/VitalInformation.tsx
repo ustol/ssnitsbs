@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2, Info } from 'lucide-react'
+import { Plus, Pencil, Trash2, Info, Eye } from 'lucide-react'
 import {
   useVitalInformationList,
   useCreateVitalInformation,
@@ -186,6 +186,58 @@ function VitalInfoDialog({ open, onClose, onSave, initial, isSaving }: VitalInfo
   )
 }
 
+interface VitalInfoViewDialogProps {
+  item: VitalInformationWithRelations | null
+  onClose: () => void
+  onEdit: (v: VitalInformationWithRelations) => void
+}
+
+function VitalInfoViewDialog({ item, onClose, onEdit }: VitalInfoViewDialogProps) {
+  return (
+    <Dialog open={!!item} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle>{item?.subject}</DialogTitle>
+        </DialogHeader>
+        {item && (
+          <div className="px-6 py-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Date</p>
+                <p className="text-sm mt-0.5">{formatDate(item.date)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Partnership</p>
+                <p className="text-sm mt-0.5">{item.partnership?.title ?? '—'}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Scope</p>
+              <div className="mt-1">
+                {item.external_meeting ? (
+                  <Badge variant="brand">{item.external_meeting.title}</Badge>
+                ) : item.internal_meeting ? (
+                  <Badge variant="info">{item.internal_meeting.title}</Badge>
+                ) : (
+                  <Badge variant="secondary">Partnership-wide</Badge>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Details</p>
+              <p className="text-sm mt-0.5 whitespace-pre-wrap">{item.details || '—'}</p>
+            </div>
+          </div>
+        )}
+        <DialogFooter className="px-6 pb-6">
+          <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+          {item && <Button type="button" onClick={() => onEdit(item)}>Edit</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function VitalInformation() {
   const { data: items = [], isLoading } = useVitalInformationList()
   const createMutation = useCreateVitalInformation()
@@ -194,11 +246,12 @@ export function VitalInformation() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<VitalInformationWithRelations | null>(null)
+  const [viewing, setViewing] = useState<VitalInformationWithRelations | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<VitalInformationWithRelations | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   const openAdd = () => { setEditing(null); setDialogOpen(true) }
-  const openEdit = (v: VitalInformationWithRelations) => { setEditing(v); setDialogOpen(true) }
+  const openEdit = (v: VitalInformationWithRelations) => { setViewing(null); setEditing(v); setDialogOpen(true) }
   const closeDialog = () => { setDialogOpen(false); setEditing(null) }
 
   const handleSave = async (values: FormValues) => {
@@ -285,6 +338,13 @@ export function VitalInformation() {
                   <td className="px-3 py-2.5">
                     <div className="flex items-center justify-center gap-1">
                       <button
+                        onClick={() => setViewing(v)}
+                        className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+                        title="View"
+                      >
+                        <Eye size={13} />
+                      </button>
+                      <button
                         onClick={() => openEdit(v)}
                         className="p-1.5 rounded-md text-zinc-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                         title="Edit"
@@ -313,6 +373,12 @@ export function VitalInformation() {
         onSave={handleSave}
         initial={editing}
         isSaving={isSaving}
+      />
+
+      <VitalInfoViewDialog
+        item={viewing}
+        onClose={() => setViewing(null)}
+        onEdit={openEdit}
       />
 
       <ConfirmDelete
