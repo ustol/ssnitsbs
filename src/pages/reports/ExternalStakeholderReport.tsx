@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useExtStakeholderReport } from '@/hooks/useReports'
 import { ReportPage, KpiRow, SectionTitle, ReportTable, ChartWrapper } from './ReportPage'
@@ -130,7 +131,7 @@ export function ExternalStakeholderReport() {
             <ReportTable
               headers={['Name', 'Organisation', 'Title', 'Email', 'Phone', '# Partnerships', 'Partnerships']}
               rows={data.rows.map(s => [
-                s.name,
+                <Link key={s.id} to={`/reports/external-stakeholder/${s.id}`} className="text-brand hover:underline font-medium">{s.name}</Link>,
                 s.organization ?? '—',
                 s.title ?? '—',
                 s.email ?? '—',

@@ -745,3 +745,79 @@ export function useMeetingAnalyticsReport() {
     },
   })
 }
+
+// ─── Individual External Stakeholder Report ──────────────────────────────────
+export function useExternalStakeholderDetailReport(id: string) {
+  return useQuery({
+    queryKey: ['report-external-stakeholder-detail', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data: stakeholder, error } = await supabase
+        .from('external_stakeholders')
+        .select(`
+          *,
+          links:partnership_external_stakeholders(
+            partnership:partnerships(id, title, organization, proposed_value, status:status_lookup(name, color))
+          )
+        `)
+        .eq('id', id)
+        .single()
+      if (error) throw error
+
+      type LinkedPartnership = { id: string; title: string; organization: string | null; proposed_value: number | null; status: { name: string; color: string } | null }
+      const partnerships = ((stakeholder.links ?? []) as Array<{ partnership: LinkedPartnership | null }>)
+        .map(l => l.partnership)
+        .filter((p): p is LinkedPartnership => p !== null)
+      const partnershipIds = partnerships.map(p => p.id)
+
+      const [extMeetingsRes, vitalInfoRes] = partnershipIds.length > 0
+        ? await Promise.all([
+            supabase
+              .from('external_meetings')
+              .select('id, title, meeting_date, location, partnership_id, status:status_lookup(name, color)')
+              .in('partnership_id', partnershipIds)
+              .order('meeting_date', { ascending: false }),
+            supabase
+              .from('vital_information')
+              .select('date, subject, details, partnership_id')
+              .in('partnership_id', partnershipIds)
+              .order('date', { ascending: false }),
+          ])
+        : [{ data: [] }, { data: [] }] as const
+
+      const partnershipNameMap: Record<string, string> = {}
+      for (const p of partnerships) partnershipNameMap[p.id] = p.title
+
+      type MeetingRow = { id: string; title: string; meeting_date: string | null; location: string | null; partnership_id: string | null; status: { name: string; color: string } | null }
+      const meetings = ((extMeetingsRes.data ?? []) as MeetingRow[]).map(m => ({
+        ...m,
+        partnershipTitle: m.partnership_id ? (partnershipNameMap[m.partnership_id] ?? null) : null,
+      }))
+
+      const lastMeetingDate = meetings.reduce((latest: string | null, m) => {
+        if (!m.meeting_date) return latest
+        return !latest || m.meeting_date > latest ? m.meeting_date : latest
+      }, null)
+
+      type VitalInfoRow = { date: string; subject: string; details: string | null; partnership_id: string }
+      const vitalInfo = (vitalInfoRes.data ?? []) as VitalInfoRow[]
+
+      return {
+        stakeholder: {
+          id: stakeholder.id as string,
+          name: stakeholder.name as string,
+          title: stakeholder.title as string | null,
+          organization: stakeholder.organization as string | null,
+          email: stakeholder.email as string | null,
+          phone: stakeholder.phone as string | null,
+          notes: stakeholder.notes as string | null,
+        },
+        partnerships,
+        meetings,
+        vitalInfo,
+        meetingCount: meetings.length,
+        lastMeetingDate,
+      }
+    },
+  })
+}

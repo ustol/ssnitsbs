@@ -17,6 +17,7 @@ import { InternalStakeholders } from '@/pages/stakeholders/InternalStakeholders'
 import { DocumentLibrary } from '@/pages/documents/DocumentLibrary'
 import { Reports } from '@/pages/reports/Reports'
 import { ExternalStakeholderReport } from '@/pages/reports/ExternalStakeholderReport'
+import { ExternalStakeholderDetailReport } from '@/pages/reports/ExternalStakeholderDetailReport'
 import { InternalStakeholderReport } from '@/pages/reports/InternalStakeholderReport'
 import { UserPerformanceReport } from '@/pages/reports/UserPerformanceReport'
 import { ExecutiveOverviewReport } from '@/pages/reports/ExecutiveOverviewReport'
@@ -91,6 +92,7 @@ export default function App() {
           {/* Reports */}
           <Route path="reports" element={<Reports />} />
           <Route path="reports/external-stakeholder" element={<ExternalStakeholderReport />} />
+          <Route path="reports/external-stakeholder/:id" element={<ExternalStakeholderDetailReport />} />
           <Route path="reports/internal-stakeholder" element={<InternalStakeholderReport />} />
           <Route path="reports/user-performance" element={<UserPerformanceReport />} />
           <Route path="reports/executive" element={<ExecutiveOverviewReport />} />
