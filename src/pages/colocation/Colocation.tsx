@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download } from 'lucide-react'
+import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -268,6 +268,33 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   )
 }
 
+// ─── Share ────────────────────────────────────────────────────────────────────
+
+function googleMapsDirectionsUrl(loc: ColocationLocation): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`
+}
+
+async function shareLocation(loc: ColocationLocation) {
+  const url = googleMapsDirectionsUrl(loc)
+  const text = loc.ssnit_branch ? `${loc.name} — ${loc.ssnit_branch}` : loc.name
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: loc.name, text, url })
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') toast.error('Failed to share location')
+    }
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`)
+    toast.success('Location link copied to clipboard')
+  } catch {
+    toast.error('Failed to copy location link')
+  }
+}
+
 // ─── PDF Export ───────────────────────────────────────────────────────────────
 
 function formatCommencementDate(date: string | null): string {
@@ -518,7 +545,7 @@ export function Colocation() {
         </div>
 
         {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 56px', borderBottom: '1px solid #e4e4e7', background: '#fafafa', flexShrink: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 82px', borderBottom: '1px solid #e4e4e7', background: '#fafafa', flexShrink: 0 }}>
           {['Location Name', 'SSNIT Branch', 'Commencement Date', ''].map((h, i) => (
             <div key={i} style={{
               padding: '9px 14px',
@@ -547,7 +574,7 @@ export function Colocation() {
             <div
               key={loc.id}
               style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 56px',
+                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 82px',
                 alignItems: 'center',
                 borderBottom: '1px solid #f4f4f5',
                 background: i % 2 === 0 ? '#fff' : '#fafafa',
@@ -568,6 +595,13 @@ export function Colocation() {
                   : '—'}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '11px 8px' }}>
+                <button
+                  onClick={() => shareLocation(loc)}
+                  title="Share"
+                  className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                >
+                  <Share2 size={12} />
+                </button>
                 <button
                   onClick={() => setEditTarget(loc)}
                   title="Edit"
