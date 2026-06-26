@@ -280,44 +280,51 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 // translate3d on the map pane + each icon compose incorrectly, drifting pins
 // off their true location). So markers are drawn manually onto the captured
 // base-map canvas using Leaflet's own pixel projection, which is always accurate.
+//
+// The result is then cropped to the country outline + pins (instead of the
+// full, mostly-empty panel) and rendered on white instead of the on-screen
+// ocean fill, so the exported page shows just the map content itself.
 async function captureMapWithPins(mapEl: HTMLDivElement, map: any, locations: ColocationLocation[]): Promise<HTMLCanvasElement> {
   const markerPane    = mapEl.querySelector('.leaflet-marker-pane')    as HTMLElement | null
   const tooltipPane   = mapEl.querySelector('.leaflet-tooltip-pane')   as HTMLElement | null
   const zoomControls  = mapEl.querySelector('.leaflet-control-container') as HTMLElement | null
-  const prevMarker     = markerPane?.style.display ?? ''
-  const prevTooltip    = tooltipPane?.style.display ?? ''
-  const prevZoom       = zoomControls?.style.display ?? ''
+  const prevMarker  = markerPane?.style.display ?? ''
+  const prevTooltip = tooltipPane?.style.display ?? ''
+  const prevZoom    = zoomControls?.style.display ?? ''
+  const prevBg      = mapEl.style.background
   if (markerPane)   markerPane.style.display = 'none'
   if (tooltipPane)  tooltipPane.style.display = 'none'
   if (zoomControls) zoomControls.style.display = 'none'
+  mapEl.style.background = '#ffffff'
 
-  let canvas: HTMLCanvasElement
+  let fullCanvas: HTMLCanvasElement
   try {
-    canvas = await html2canvas(mapEl, {
+    fullCanvas = await html2canvas(mapEl, {
       scale: 2,
       useCORS: true,
-      backgroundColor: '#cfe0ea',
+      backgroundColor: '#ffffff',
       logging: false,
     })
   } finally {
     if (markerPane)   markerPane.style.display = prevMarker
     if (tooltipPane)  tooltipPane.style.display = prevTooltip
     if (zoomControls) zoomControls.style.display = prevZoom
+    mapEl.style.background = prevBg
   }
 
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return canvas
+  const scaleX = fullCanvas.width  / mapEl.clientWidth
+  const scaleY = fullCanvas.height / mapEl.clientHeight
+  const ctx = fullCanvas.getContext('2d')
 
   const pinImg = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(PIN_SVG)}`)
-  const scaleX = canvas.width  / mapEl.clientWidth
-  const scaleY = canvas.height / mapEl.clientHeight
-
+  const markerPoints: { x: number; y: number }[] = []
   for (const loc of locations) {
     const lat = Number(loc.latitude)
     const lng = Number(loc.longitude)
     if (isNaN(lat) || isNaN(lng)) continue
     const pt = map.latLngToContainerPoint([lat, lng])
-    ctx.drawImage(
+    markerPoints.push(pt)
+    ctx?.drawImage(
       pinImg,
       pt.x * scaleX - PIN_ICON_SIZE.anchorX * scaleX,
       pt.y * scaleY - PIN_ICON_SIZE.anchorY * scaleY,
@@ -326,7 +333,32 @@ async function captureMapWithPins(mapEl: HTMLDivElement, map: any, locations: Co
     )
   }
 
-  return canvas
+  // Crop to the country outline + pins, trimming the surrounding empty space
+  const sw = map.latLngToContainerPoint([GHANA_BOUNDS[0][0], GHANA_BOUNDS[0][1]])
+  const ne = map.latLngToContainerPoint([GHANA_BOUNDS[1][0], GHANA_BOUNDS[1][1]])
+  const xs = [sw.x, ne.x, ...markerPoints.map(p => p.x)]
+  const ys = [sw.y, ne.y, ...markerPoints.map(p => p.y)]
+  const PAD = 28
+  const left   = Math.max(0, Math.min(...xs) - PAD)
+  const right  = Math.min(mapEl.clientWidth,  Math.max(...xs) + PAD)
+  const top    = Math.max(0, Math.min(...ys) - PAD - PIN_ICON_SIZE.height)
+  const bottom = Math.min(mapEl.clientHeight, Math.max(...ys) + PAD)
+
+  const cropCanvas = document.createElement('canvas')
+  cropCanvas.width  = Math.round((right - left) * scaleX)
+  cropCanvas.height = Math.round((bottom - top) * scaleY)
+  const cropCtx = cropCanvas.getContext('2d')
+  if (cropCtx) {
+    cropCtx.fillStyle = '#ffffff'
+    cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height)
+    cropCtx.drawImage(
+      fullCanvas,
+      left * scaleX, top * scaleY, cropCanvas.width, cropCanvas.height,
+      0, 0, cropCanvas.width, cropCanvas.height,
+    )
+  }
+
+  return cropCanvas
 }
 
 async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLDivElement | null, map: any) {
@@ -363,8 +395,7 @@ async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLD
   if (mapEl && map) {
     const canvas = await captureMapWithPins(mapEl, map, locations)
 
-    const aspect = canvas.width / canvas.height
-    doc.addPage('a4', aspect >= 1 ? 'landscape' : 'portrait')
+    doc.addPage('a4', 'portrait')
 
     const pageWidth  = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
@@ -375,6 +406,7 @@ async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLD
     doc.setTextColor(24, 24, 27)
     doc.text('Location Map', margin, 18)
 
+    const aspect = canvas.width / canvas.height
     const maxW = pageWidth - margin * 2
     const maxH = pageHeight - top - margin
     let w = maxW
