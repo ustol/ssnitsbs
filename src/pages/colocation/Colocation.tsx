@@ -17,7 +17,16 @@ import { toast } from 'sonner'
 
 export interface GhanaMapHandle {
   getElement: () => HTMLDivElement | null
+  getMap: () => any
 }
+
+// Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
+// Shared between the live Leaflet divIcon and the PDF export's canvas-drawn pins.
+const PIN_ICON_SIZE = { width: 28, height: 36, anchorX: 14, anchorY: 36 }
+const PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+  <path d="M14 0C8.477 0 4 4.477 4 10c0 7.5 10 26 10 26S24 17.5 24 10C24 4.477 19.523 0 14 0z" fill="#E8621A" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="14" cy="10" r="4" fill="#fff"/>
+</svg>`
 
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
@@ -28,6 +37,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>
 
   useImperativeHandle(ref, () => ({
     getElement: () => containerRef.current,
+    getMap: () => mapRef.current,
   }))
 
   // Init map once
@@ -81,13 +91,10 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>
 
     const pinIcon = L.divIcon({
       className: '',
-      iconSize: [28, 36],
-      iconAnchor: [14, 36],
+      iconSize: [PIN_ICON_SIZE.width, PIN_ICON_SIZE.height],
+      iconAnchor: [PIN_ICON_SIZE.anchorX, PIN_ICON_SIZE.anchorY],
       tooltipAnchor: [0, -38],
-      html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-        <path d="M14 0C8.477 0 4 4.477 4 10c0 7.5 10 26 10 26S24 17.5 24 10C24 4.477 19.523 0 14 0z" fill="#E8621A" stroke="#fff" stroke-width="1.5"/>
-        <circle cx="14" cy="10" r="4" fill="#fff"/>
-      </svg>`,
+      html: PIN_SVG,
     })
 
     locations.forEach(loc => {
@@ -260,7 +267,69 @@ function formatCommencementDate(date: string | null): string {
     : '—'
 }
 
-async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLDivElement | null) {
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+// html2canvas mis-renders Leaflet's CSS-transform-positioned marker DOM (nested
+// translate3d on the map pane + each icon compose incorrectly, drifting pins
+// off their true location). So markers are drawn manually onto the captured
+// base-map canvas using Leaflet's own pixel projection, which is always accurate.
+async function captureMapWithPins(mapEl: HTMLDivElement, map: any, locations: ColocationLocation[]): Promise<HTMLCanvasElement> {
+  const markerPane    = mapEl.querySelector('.leaflet-marker-pane')    as HTMLElement | null
+  const tooltipPane   = mapEl.querySelector('.leaflet-tooltip-pane')   as HTMLElement | null
+  const zoomControls  = mapEl.querySelector('.leaflet-control-container') as HTMLElement | null
+  const prevMarker     = markerPane?.style.display ?? ''
+  const prevTooltip    = tooltipPane?.style.display ?? ''
+  const prevZoom       = zoomControls?.style.display ?? ''
+  if (markerPane)   markerPane.style.display = 'none'
+  if (tooltipPane)  tooltipPane.style.display = 'none'
+  if (zoomControls) zoomControls.style.display = 'none'
+
+  let canvas: HTMLCanvasElement
+  try {
+    canvas = await html2canvas(mapEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#cfe0ea',
+      logging: false,
+    })
+  } finally {
+    if (markerPane)   markerPane.style.display = prevMarker
+    if (tooltipPane)  tooltipPane.style.display = prevTooltip
+    if (zoomControls) zoomControls.style.display = prevZoom
+  }
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+
+  const pinImg = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(PIN_SVG)}`)
+  const scaleX = canvas.width  / mapEl.clientWidth
+  const scaleY = canvas.height / mapEl.clientHeight
+
+  for (const loc of locations) {
+    const lat = Number(loc.latitude)
+    const lng = Number(loc.longitude)
+    if (isNaN(lat) || isNaN(lng)) continue
+    const pt = map.latLngToContainerPoint([lat, lng])
+    ctx.drawImage(
+      pinImg,
+      pt.x * scaleX - PIN_ICON_SIZE.anchorX * scaleX,
+      pt.y * scaleY - PIN_ICON_SIZE.anchorY * scaleY,
+      PIN_ICON_SIZE.width * scaleX,
+      PIN_ICON_SIZE.height * scaleY,
+    )
+  }
+
+  return canvas
+}
+
+async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLDivElement | null, map: any) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   // Page 1: locations table
@@ -291,22 +360,8 @@ async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLD
   })
 
   // Page 2: map of all locations
-  if (mapEl) {
-    const zoomControls = mapEl.querySelector('.leaflet-control-container') as HTMLElement | null
-    const prevDisplay = zoomControls?.style.display ?? ''
-    if (zoomControls) zoomControls.style.display = 'none'
-
-    let canvas: HTMLCanvasElement | null = null
-    try {
-      canvas = await html2canvas(mapEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#cfe0ea',
-        logging: false,
-      })
-    } finally {
-      if (zoomControls) zoomControls.style.display = prevDisplay
-    }
+  if (mapEl && map) {
+    const canvas = await captureMapWithPins(mapEl, map, locations)
 
     const aspect = canvas.width / canvas.height
     doc.addPage('a4', aspect >= 1 ? 'landscape' : 'portrait')
@@ -353,7 +408,7 @@ export function Colocation() {
   async function handleExport() {
     setIsExporting(true)
     try {
-      await exportColocationPdf(locations, mapHandleRef.current?.getElement() ?? null)
+      await exportColocationPdf(locations, mapHandleRef.current?.getElement() ?? null, mapHandleRef.current?.getMap())
     } catch (err) {
       toast.error((err as Error).message || 'Failed to export PDF')
     } finally {
