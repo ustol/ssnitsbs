@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { Plus, X, MapPin, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
+import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download } from 'lucide-react'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import html2canvas from 'html2canvas'
 import {
   useColocationLocations,
   useAddLocation,
@@ -12,12 +15,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
+export interface GhanaMapHandle {
+  getElement: () => HTMLDivElement | null
+}
+
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
-function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
+const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>(function GhanaMap({ locations }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
   const markersRef   = useRef<Record<string, any>>({})
+
+  useImperativeHandle(ref, () => ({
+    getElement: () => containerRef.current,
+  }))
 
   // Init map once
   useEffect(() => {
@@ -97,7 +108,7 @@ function GhanaMap({ locations }: { locations: ColocationLocation[] }) {
   }, [locations])
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
-}
+})
 
 // ─── Location Modal ───────────────────────────────────────────────────────────
 
@@ -241,19 +252,113 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   )
 }
 
+// ─── PDF Export ───────────────────────────────────────────────────────────────
+
+function formatCommencementDate(date: string | null): string {
+  return date
+    ? new Date(date).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—'
+}
+
+async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLDivElement | null) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+  // Page 1: locations table
+  doc.setFontSize(13)
+  doc.setTextColor(24, 24, 27)
+  doc.text('Colocation Locations', 14, 18)
+  doc.setFontSize(8)
+  doc.setTextColor(113, 113, 122)
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' })}   ·   ${locations.length} location${locations.length !== 1 ? 's' : ''}`,
+    14, 25,
+  )
+
+  autoTable(doc, {
+    startY: 31,
+    head: [['Location Name', 'SSNIT Branch', 'Commencement Date']],
+    body: locations.map(loc => [loc.name, loc.ssnit_branch || '—', formatCommencementDate(loc.commencement_date)]),
+    styles: { fontSize: 9.5, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    tableLineColor: [228, 228, 231],
+    tableLineWidth: 0.1,
+    columnStyles: {
+      0: { cellWidth: 68 },
+      1: { cellWidth: 68 },
+      2: { cellWidth: 46 },
+    },
+  })
+
+  // Page 2: map of all locations
+  if (mapEl) {
+    const zoomControls = mapEl.querySelector('.leaflet-control-container') as HTMLElement | null
+    const prevDisplay = zoomControls?.style.display ?? ''
+    if (zoomControls) zoomControls.style.display = 'none'
+
+    let canvas: HTMLCanvasElement | null = null
+    try {
+      canvas = await html2canvas(mapEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#cfe0ea',
+        logging: false,
+      })
+    } finally {
+      if (zoomControls) zoomControls.style.display = prevDisplay
+    }
+
+    const aspect = canvas.width / canvas.height
+    doc.addPage('a4', aspect >= 1 ? 'landscape' : 'portrait')
+
+    const pageWidth  = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 14
+    const top = 24
+
+    doc.setFontSize(13)
+    doc.setTextColor(24, 24, 27)
+    doc.text('Location Map', margin, 18)
+
+    const maxW = pageWidth - margin * 2
+    const maxH = pageHeight - top - margin
+    let w = maxW
+    let h = w / aspect
+    if (h > maxH) { h = maxH; w = h * aspect }
+
+    doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pageWidth - w) / 2, top, w, h)
+  }
+
+  const dateStamp = new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
+  doc.save(`colocation-locations — ${dateStamp}.pdf`)
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function Colocation() {
   const { data: locations = [], isLoading } = useColocationLocations()
   const { mutateAsync: deleteLocation } = useDeleteLocation()
+  const mapHandleRef = useRef<GhanaMapHandle>(null)
 
-  const [addOpen,    setAddOpen]    = useState(false)
-  const [editTarget, setEditTarget] = useState<ColocationLocation | null>(null)
+  const [addOpen,     setAddOpen]     = useState(false)
+  const [editTarget,  setEditTarget]  = useState<ColocationLocation | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}"? This cannot be undone.`)) return
     try { await deleteLocation(loc.id); toast.success(`"${loc.name}" removed`) }
     catch (err) { toast.error((err as Error).message) }
+  }
+
+  async function handleExport() {
+    setIsExporting(true)
+    try {
+      await exportColocationPdf(locations, mapHandleRef.current?.getElement() ?? null)
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to export PDF')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   return (
@@ -262,7 +367,7 @@ export function Colocation() {
 
       {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
       <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
-        <GhanaMap locations={locations} />
+        <GhanaMap ref={mapHandleRef} locations={locations} />
       </div>
 
       {/* ── Table panel: top on mobile (order-1), right on desktop (order-2) ── */}
@@ -276,10 +381,21 @@ export function Colocation() {
               {isLoading ? 'Loading…' : `${locations.length} location${locations.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <Button onClick={() => setAddOpen(true)} className="gap-1.5 h-8 text-xs">
-            <Plus size={13} />
-            Add New Location
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleExport}
+              variant="outline"
+              className="gap-1.5 h-8 text-xs"
+              disabled={isExporting || isLoading || locations.length === 0}
+            >
+              {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              Export
+            </Button>
+            <Button onClick={() => setAddOpen(true)} className="gap-1.5 h-8 text-xs">
+              <Plus size={13} />
+              Add New Location
+            </Button>
+          </div>
         </div>
 
         {/* Table header */}
