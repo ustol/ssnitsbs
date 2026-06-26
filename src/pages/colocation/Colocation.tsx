@@ -28,7 +28,7 @@ const PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" 
 
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
-const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>(function GhanaMap({ locations }, ref) {
+const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; showLabels: boolean }>(function GhanaMap({ locations, showLabels }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
   const markersRef   = useRef<Record<string, any>>({})
@@ -77,7 +77,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>
     }
   }, [])
 
-  // Sync markers whenever locations change
+  // Sync markers whenever locations or label visibility changes
   useEffect(() => {
     const map = mapRef.current
     if (!map || typeof L === 'undefined') return
@@ -101,15 +101,27 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>
 
       const marker = L.marker([lat, lng], { icon: pinIcon })
 
-      marker.bindTooltip(
-        `<strong>${loc.name}</strong>`
-        + (loc.ssnit_branch ? `<br/><span style="font-size:11px;color:#555">${loc.ssnit_branch}</span>` : ''),
-        { direction: 'top', offset: [0, -4], opacity: 0.95 },
-      )
+      if (showLabels) {
+        // offset compensates the icon's tooltipAnchor ([0,-38], tuned for
+        // direction:'top') so the label instead sits beside the pin's head.
+        marker.bindTooltip(loc.name, {
+          permanent: true,
+          direction: 'right',
+          offset: [20, 12],
+          opacity: 1,
+          className: 'colocation-label',
+        })
+      } else {
+        marker.bindTooltip(
+          `<strong>${loc.name}</strong>`
+          + (loc.ssnit_branch ? `<br/><span style="font-size:11px;color:#555">${loc.ssnit_branch}</span>` : ''),
+          { direction: 'top', offset: [0, -4], opacity: 0.95 },
+        )
+      }
       marker.addTo(map)
       markersRef.current[loc.id] = marker
     })
-  }, [locations])
+  }, [locations, showLabels])
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 })
@@ -438,6 +450,7 @@ export function Colocation() {
   const [addOpen,     setAddOpen]     = useState(false)
   const [editTarget,  setEditTarget]  = useState<ColocationLocation | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [showLabels,  setShowLabels]  = useState(false)
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}"? This cannot be undone.`)) return
@@ -462,7 +475,18 @@ export function Colocation() {
 
       {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
       <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
-        <GhanaMap ref={mapHandleRef} locations={locations} />
+        <GhanaMap ref={mapHandleRef} locations={locations} showLabels={showLabels} />
+
+        <button
+          type="button"
+          onClick={() => setShowLabels(v => !v)}
+          className="absolute top-3 right-3 z-[1000] flex items-center gap-2 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur-sm"
+        >
+          Labels
+          <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${showLabels ? 'bg-brand' : 'bg-zinc-300'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${showLabels ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          </span>
+        </button>
       </div>
 
       {/* ── Table panel: top on mobile (order-1), right on desktop (order-2) ── */}
