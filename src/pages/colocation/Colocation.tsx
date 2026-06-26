@@ -328,8 +328,8 @@ async function renderGhanaMapCanvas(map: any, locations: ColocationLocation[]): 
     return { x: (pt.x - left) * RES, y: (pt.y - top) * RES }
   }
 
-  // Ocean
-  ctx.fillStyle = '#cfe0ea'
+  // Background
+  ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
   // Region polygons
