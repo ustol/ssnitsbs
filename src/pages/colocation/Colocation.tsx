@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import html2canvas from 'html2canvas'
 import {
   useColocationLocations,
   useAddLocation,
@@ -16,7 +15,6 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
 export interface GhanaMapHandle {
-  getElement: () => HTMLDivElement | null
   getMap: () => any
 }
 
@@ -36,7 +34,6 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[] }>
   const markersRef   = useRef<Record<string, any>>({})
 
   useImperativeHandle(ref, () => ({
-    getElement: () => containerRef.current,
     getMap: () => mapRef.current,
   }))
 
@@ -276,92 +273,103 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-// html2canvas mis-renders Leaflet's CSS-transform-positioned marker DOM (nested
-// translate3d on the map pane + each icon compose incorrectly, drifting pins
-// off their true location). So markers are drawn manually onto the captured
-// base-map canvas using Leaflet's own pixel projection, which is always accurate.
-//
-// The result is then cropped to the country outline + pins (instead of the
-// full, mostly-empty panel) and rendered on white instead of the on-screen
-// ocean fill, so the exported page shows just the map content itself.
-async function captureMapWithPins(mapEl: HTMLDivElement, map: any, locations: ColocationLocation[]): Promise<HTMLCanvasElement> {
-  const markerPane    = mapEl.querySelector('.leaflet-marker-pane')    as HTMLElement | null
-  const tooltipPane   = mapEl.querySelector('.leaflet-tooltip-pane')   as HTMLElement | null
-  const zoomControls  = mapEl.querySelector('.leaflet-control-container') as HTMLElement | null
-  const prevMarker  = markerPane?.style.display ?? ''
-  const prevTooltip = tooltipPane?.style.display ?? ''
-  const prevZoom    = zoomControls?.style.display ?? ''
-  const prevBg      = mapEl.style.background
-  if (markerPane)   markerPane.style.display = 'none'
-  if (tooltipPane)  tooltipPane.style.display = 'none'
-  if (zoomControls) zoomControls.style.display = 'none'
-  mapEl.style.background = '#ffffff'
-
-  let fullCanvas: HTMLCanvasElement
+async function fetchGhanaRegions(): Promise<any | null> {
   try {
-    fullCanvas = await html2canvas(mapEl, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-    })
-  } finally {
-    if (markerPane)   markerPane.style.display = prevMarker
-    if (tooltipPane)  tooltipPane.style.display = prevTooltip
-    if (zoomControls) zoomControls.style.display = prevZoom
-    mapEl.style.background = prevBg
+    const res = await fetch('/api/ghana-regions')
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
   }
-
-  const scaleX = fullCanvas.width  / mapEl.clientWidth
-  const scaleY = fullCanvas.height / mapEl.clientHeight
-  const ctx = fullCanvas.getContext('2d')
-
-  const pinImg = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(PIN_SVG)}`)
-  const markerPoints: { x: number; y: number }[] = []
-  for (const loc of locations) {
-    const lat = Number(loc.latitude)
-    const lng = Number(loc.longitude)
-    if (isNaN(lat) || isNaN(lng)) continue
-    const pt = map.latLngToContainerPoint([lat, lng])
-    markerPoints.push(pt)
-    ctx?.drawImage(
-      pinImg,
-      pt.x * scaleX - PIN_ICON_SIZE.anchorX * scaleX,
-      pt.y * scaleY - PIN_ICON_SIZE.anchorY * scaleY,
-      PIN_ICON_SIZE.width * scaleX,
-      PIN_ICON_SIZE.height * scaleY,
-    )
-  }
-
-  // Crop to the country outline + pins, trimming the surrounding empty space
-  const sw = map.latLngToContainerPoint([GHANA_BOUNDS[0][0], GHANA_BOUNDS[0][1]])
-  const ne = map.latLngToContainerPoint([GHANA_BOUNDS[1][0], GHANA_BOUNDS[1][1]])
-  const xs = [sw.x, ne.x, ...markerPoints.map(p => p.x)]
-  const ys = [sw.y, ne.y, ...markerPoints.map(p => p.y)]
-  const PAD = 28
-  const left   = Math.max(0, Math.min(...xs) - PAD)
-  const right  = Math.min(mapEl.clientWidth,  Math.max(...xs) + PAD)
-  const top    = Math.max(0, Math.min(...ys) - PAD - PIN_ICON_SIZE.height)
-  const bottom = Math.min(mapEl.clientHeight, Math.max(...ys) + PAD)
-
-  const cropCanvas = document.createElement('canvas')
-  cropCanvas.width  = Math.round((right - left) * scaleX)
-  cropCanvas.height = Math.round((bottom - top) * scaleY)
-  const cropCtx = cropCanvas.getContext('2d')
-  if (cropCtx) {
-    cropCtx.fillStyle = '#ffffff'
-    cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height)
-    cropCtx.drawImage(
-      fullCanvas,
-      left * scaleX, top * scaleY, cropCanvas.width, cropCanvas.height,
-      0, 0, cropCanvas.width, cropCanvas.height,
-    )
-  }
-
-  return cropCanvas
 }
 
-async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLDivElement | null, map: any) {
+// [lng, lat] rings, grouped per polygon (each polygon: outer ring + optional hole rings)
+function extractPolygonRings(geojson: any): [number, number][][][] {
+  const features = geojson?.type === 'FeatureCollection' ? geojson.features : geojson ? [geojson] : []
+  const polygons: [number, number][][][] = []
+  for (const feature of features) {
+    const geom = feature?.geometry
+    if (!geom) continue
+    if (geom.type === 'Polygon') polygons.push(geom.coordinates)
+    else if (geom.type === 'MultiPolygon') polygons.push(...geom.coordinates)
+  }
+  return polygons
+}
+
+// Renders the map as a plain canvas — region polygons + pins — projected via
+// Leaflet's own latLngToContainerPoint, so it's a pixel-accurate duplicate of
+// what's on screen. (html2canvas was dropped: it can't correctly capture
+// Leaflet's marker DOM, which relies on nested CSS transforms for positioning.)
+async function renderGhanaMapCanvas(map: any, locations: ColocationLocation[]): Promise<HTMLCanvasElement> {
+  const RES = 3
+  const PAD = 24
+
+  const sw = map.latLngToContainerPoint([GHANA_BOUNDS[0][0], GHANA_BOUNDS[0][1]])
+  const ne = map.latLngToContainerPoint([GHANA_BOUNDS[1][0], GHANA_BOUNDS[1][1]])
+
+  const validLocations = locations.filter(loc => !isNaN(Number(loc.latitude)) && !isNaN(Number(loc.longitude)))
+  const markerPoints = validLocations.map(loc => map.latLngToContainerPoint([Number(loc.latitude), Number(loc.longitude)]))
+
+  const xs = [sw.x, ne.x, ...markerPoints.map(p => p.x)]
+  const ys = [sw.y, ne.y, ...markerPoints.map(p => p.y)]
+  const left   = Math.min(...xs) - PAD
+  const right  = Math.max(...xs) + PAD
+  const top    = Math.min(...ys) - PAD - PIN_ICON_SIZE.height
+  const bottom = Math.max(...ys) + PAD
+
+  const canvas = document.createElement('canvas')
+  canvas.width  = Math.round((right - left) * RES)
+  canvas.height = Math.round((bottom - top) * RES)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+
+  const project = (lat: number, lng: number) => {
+    const pt = map.latLngToContainerPoint([lat, lng])
+    return { x: (pt.x - left) * RES, y: (pt.y - top) * RES }
+  }
+
+  // Ocean
+  ctx.fillStyle = '#cfe0ea'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // Region polygons
+  const regions = await fetchGhanaRegions()
+  if (regions) {
+    ctx.fillStyle = '#eee8dc'
+    ctx.strokeStyle = '#8fa3b0'
+    ctx.lineWidth = RES
+    for (const polygon of extractPolygonRings(regions)) {
+      ctx.beginPath()
+      for (const ring of polygon) {
+        ring.forEach(([lng, lat], i) => {
+          const { x, y } = project(lat, lng)
+          if (i === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        })
+        ctx.closePath()
+      }
+      ctx.fill('evenodd')
+      ctx.stroke()
+    }
+  }
+
+  // Pins
+  const pinImg = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(PIN_SVG)}`)
+  for (const loc of validLocations) {
+    const { x, y } = project(Number(loc.latitude), Number(loc.longitude))
+    ctx.drawImage(
+      pinImg,
+      x - PIN_ICON_SIZE.anchorX * RES,
+      y - PIN_ICON_SIZE.anchorY * RES,
+      PIN_ICON_SIZE.width * RES,
+      PIN_ICON_SIZE.height * RES,
+    )
+  }
+
+  return canvas
+}
+
+async function exportColocationPdf(locations: ColocationLocation[], map: any) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   // Page 1: locations table
@@ -392,8 +400,8 @@ async function exportColocationPdf(locations: ColocationLocation[], mapEl: HTMLD
   })
 
   // Page 2: map of all locations
-  if (mapEl && map) {
-    const canvas = await captureMapWithPins(mapEl, map, locations)
+  if (map) {
+    const canvas = await renderGhanaMapCanvas(map, locations)
 
     doc.addPage('a4', 'portrait')
 
@@ -440,7 +448,7 @@ export function Colocation() {
   async function handleExport() {
     setIsExporting(true)
     try {
-      await exportColocationPdf(locations, mapHandleRef.current?.getElement() ?? null, mapHandleRef.current?.getMap())
+      await exportColocationPdf(locations, mapHandleRef.current?.getMap())
     } catch (err) {
       toast.error((err as Error).message || 'Failed to export PDF')
     } finally {
