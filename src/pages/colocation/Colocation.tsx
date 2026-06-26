@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
+import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2, Search } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -478,6 +478,15 @@ export function Colocation() {
   const [editTarget,  setEditTarget]  = useState<ColocationLocation | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [showLabels,  setShowLabels]  = useState(false)
+  const [search,      setSearch]      = useState('')
+
+  const filteredLocations = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return locations
+    return locations.filter(loc =>
+      loc.name.toLowerCase().includes(q) || (loc.ssnit_branch ?? '').toLowerCase().includes(q),
+    )
+  }, [locations, search])
 
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}"? This cannot be undone.`)) return
@@ -502,7 +511,7 @@ export function Colocation() {
 
       {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
       <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
-        <GhanaMap ref={mapHandleRef} locations={locations} showLabels={showLabels} />
+        <GhanaMap ref={mapHandleRef} locations={filteredLocations} showLabels={showLabels} />
 
         <button
           type="button"
@@ -520,11 +529,15 @@ export function Colocation() {
       <div className="order-1 md:order-2 flex flex-col min-w-0 bg-white flex-1 md:flex-none md:w-[45%] border-b border-zinc-200 md:border-b-0 md:border-l">
 
         {/* Panel header */}
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: '#fff' }}>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: '#fff' }}>
           <div>
             <p style={{ fontSize: 13, fontWeight: 600, color: '#18181b' }}>Colocation Locations</p>
             <p style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>
-              {isLoading ? 'Loading…' : `${locations.length} location${locations.length !== 1 ? 's' : ''}`}
+              {isLoading
+                ? 'Loading…'
+                : search
+                  ? `${filteredLocations.length} of ${locations.length} location${locations.length !== 1 ? 's' : ''}`
+                  : `${locations.length} location${locations.length !== 1 ? 's' : ''}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -541,6 +554,19 @@ export function Colocation() {
               <Plus size={13} />
               Add New Location
             </Button>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div style={{ padding: '0 16px 12px', borderBottom: '1px solid #e4e4e7', flexShrink: 0, background: '#fff' }}>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+            <Input
+              placeholder="Search locations or branches…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
           </div>
         </div>
 
@@ -570,7 +596,15 @@ export function Colocation() {
               <p style={{ fontSize: 13, fontWeight: 600, color: '#71717a' }}>No locations yet</p>
               <p style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>Click "Add New Location" to get started</p>
             </div>
-          ) : locations.map((loc, i) => (
+          ) : filteredLocations.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32, textAlign: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f4f4f5', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                <Search size={20} color="#a1a1aa" />
+              </div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#71717a' }}>No matches found</p>
+              <p style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>No locations match "{search}"</p>
+            </div>
+          ) : filteredLocations.map((loc, i) => (
             <div
               key={loc.id}
               style={{
@@ -622,10 +656,10 @@ export function Colocation() {
         </div>
 
         {/* Footer */}
-        {locations.length > 0 && (
+        {filteredLocations.length > 0 && (
           <div style={{ padding: '7px 14px', borderTop: '1px solid #e4e4e7', background: '#fafafa', flexShrink: 0 }}>
             <span style={{ fontSize: 11, color: '#a1a1aa' }}>
-              {locations.length} location{locations.length !== 1 ? 's' : ''}
+              {filteredLocations.length} location{filteredLocations.length !== 1 ? 's' : ''}
             </span>
           </div>
         )}
