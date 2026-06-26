@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AIDocumentModal } from '@/components/shared/AIDocumentModal'
 import { buildMinutesPrompt } from '@/lib/meetingMinutes'
@@ -15,7 +15,7 @@ export function MeetingMinutesButton({ meeting, meetingType }: MeetingMinutesBut
   const [open, setOpen] = useState(false)
 
   const partnership = meeting.partnership as { id: string } | null
-  const { data: vitalInfo = [] } = useVitalInformationByMeeting(
+  const { data: vitalInfo = [], isLoading: vitalInfoLoading } = useVitalInformationByMeeting(
     partnership?.id ?? null,
     meeting.id as string | undefined,
     meetingType,
@@ -30,8 +30,10 @@ export function MeetingMinutesButton({ meeting, meetingType }: MeetingMinutesBut
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} disabled={vitalInfoLoading}>
+        {vitalInfoLoading
+          ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
         Minutes
       </Button>
       <AIDocumentModal
