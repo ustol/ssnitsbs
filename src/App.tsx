@@ -36,6 +36,7 @@ import { VirtualBranch } from '@/pages/virtualbranch/VirtualBranch'
 import { ActionPointTracker } from '@/pages/meetings/ActionPointTracker'
 import { LabourMinistry } from '@/pages/labourministry/LabourMinistry'
 import { VitalInformation } from '@/pages/vitalinformation/VitalInformation'
+import { MinutesTranscribe } from '@/pages/minutes-transcribe/MinutesTranscribe'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -76,6 +77,8 @@ export default function App() {
           <Route path="meetings/internal/:id/edit" element={<InternalMeetingForm />} />
           {/* Action Point Tracker */}
           <Route path="action-points" element={<ActionPointTracker />} />
+          {/* Minutes Transcribe */}
+          <Route path="minutes-transcribe" element={<MinutesTranscribe />} />
           {/* Vital Information */}
           <Route path="vital-information" element={<VitalInformation />} />
           {/* Stakeholders */}
