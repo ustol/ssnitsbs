@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { PartnershipReportButton } from '@/components/partnerships/PartnershipReportButton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -69,6 +70,7 @@ export function PartnershipView() {
             <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 className="h-3.5 w-3.5 mr-1.5" />Share
             </Button>
+            <PartnershipReportButton partnership={p} vitalInfo={vitalInfo} />
             <Button variant="outline" size="sm" asChild>
               <Link to={`/partnerships/${id}/edit`}><Pencil className="h-3.5 w-3.5 mr-1.5" />Edit</Link>
             </Button>
