@@ -37,6 +37,14 @@ import { ActionPointTracker } from '@/pages/meetings/ActionPointTracker'
 import { LabourMinistry } from '@/pages/labourministry/LabourMinistry'
 import { VitalInformation } from '@/pages/vitalinformation/VitalInformation'
 import { MinutesTranscribe } from '@/pages/minutes-transcribe/MinutesTranscribe'
+import { TelehealthList } from '@/pages/telehealth/TelehealthList'
+import { TelehealthDataEntry } from '@/pages/telehealth/TelehealthDataEntry'
+import { WeeklySummary } from '@/pages/telehealth/WeeklySummary'
+import { MonthlyConsolidation } from '@/pages/telehealth/MonthlyConsolidation'
+import { QuarterlyConsolidation } from '@/pages/telehealth/QuarterlyConsolidation'
+import { TelehealthDashboard } from '@/pages/telehealth/TelehealthDashboard'
+import { TelehealthExport } from '@/pages/telehealth/TelehealthExport'
+import { TelehealthConfig } from '@/pages/telehealth/TelehealthConfig'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -108,6 +116,16 @@ export default function App() {
           <Route path="colocation" element={<Colocation />} />
           {/* Virtual Branch */}
           <Route path="virtual-branch" element={<VirtualBranch />} />
+          {/* ── Telehealth Module ────────────────────────────────── */}
+          <Route path="telehealth" element={<TelehealthList />} />
+          <Route path="telehealth/new" element={<TelehealthDataEntry />} />
+          <Route path="telehealth/:id/edit" element={<TelehealthDataEntry />} />
+          <Route path="telehealth/weekly-summary" element={<WeeklySummary />} />
+          <Route path="telehealth/monthly-consolidation" element={<MonthlyConsolidation />} />
+          <Route path="telehealth/quarterly-consolidation" element={<QuarterlyConsolidation />} />
+          <Route path="telehealth/dashboard" element={<TelehealthDashboard />} />
+          <Route path="telehealth/export" element={<TelehealthExport />} />
+          <Route path="telehealth/config" element={<TelehealthConfig />} />
           {/* Audit Trail */}
           <Route path="audit" element={<AuditLog />} />
           {/* Settings */}

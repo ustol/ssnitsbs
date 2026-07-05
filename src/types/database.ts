@@ -229,6 +229,147 @@ export interface AuditLog {
   created_at: string
 }
 
+// ============================================================
+// TELEHEALTH MODULE TYPES
+// ============================================================
+
+export interface TelehealthEntry {
+  id: string
+  entry_id: string | null
+  reporting_period: string
+  weekly_cycle: string
+  date_of_interaction: string
+  cro_name: string
+  patient_full_name: string
+  telephone_number: string | null
+  alternative_contact_number: string | null
+  email_address: string | null
+  physical_location: string | null
+  region: string
+  engagement_type: string
+  digital_channel_used: string | null
+  feedback_category: string
+  positive_feedback: string | null
+  complaint: string | null
+  suggestion: string | null
+  detailed_feedback_narrative: string | null
+  successful_contact: string | null
+  issue_resolved: string | null
+  escalation_required: string | null
+  key_observation: string | null
+  root_cause: string | null
+  emerging_trend: string | null
+  recommendation: string | null
+  priority_level: string | null
+  responsible_unit: string | null
+  status: string
+  quarter: string | null
+  duplicate_flag: string | null
+  contact_missing: string | null
+  phone_check: string | null
+  recommendation_sort_key: number | null
+  observation_sort_key: number | null
+  risk_sort_key: number | null
+  opportunity_sort_key: number | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TeleRefItem {
+  id: string
+  value: string
+  sort_order: number
+}
+
+export interface TelehealthFilters {
+  reporting_period?: string
+  weekly_cycle?: string
+  region?: string
+  status?: string
+  feedback_category?: string
+  priority_level?: string
+  responsible_unit?: string
+  quarter?: string
+  date_from?: string
+  date_to?: string
+  search?: string
+}
+
+export interface WeeklySummaryStats {
+  total_patients: number
+  total_followups: number
+  total_feedback: number
+  total_complaints: number
+  issues_resolved: number
+  positive_count: number
+  complaint_count: number
+  suggestion_count: number
+  neutral_count: number
+  top_observations: TelehealthEntry[]
+  top_recommendations: TelehealthEntry[]
+}
+
+export interface MonthlyTotals {
+  month: string
+  month_num: number
+  total_patients: number
+  total_followups: number
+  total_feedback: number
+  total_complaints: number
+  issues_resolved: number
+  escalations: number
+}
+
+export interface MonthlyConsolidationData {
+  months: MonthlyTotals[]
+  year_total: MonthlyTotals
+  top_observations: TelehealthEntry[]
+  top_recommendations: TelehealthEntry[]
+  top_risks: TelehealthEntry[]
+  top_opportunities: TelehealthEntry[]
+}
+
+export interface QuarterTotals {
+  quarter: string
+  months: string[]
+  total_patients: number
+  total_followups: number
+  total_feedback: number
+  total_complaints: number
+  issues_resolved: number
+  escalations: number
+}
+
+export interface QuarterlyConsolidationData {
+  quarters: QuarterTotals[]
+  year_total: MonthlyTotals
+  busiest_month: string
+  busiest_quarter: string
+  months_with_activity: number
+  emerging_trends: TelehealthEntry[]
+  top_risks: TelehealthEntry[]
+  top_recommendations: TelehealthEntry[]
+}
+
+export interface DashboardMetrics {
+  total_patients: number
+  total_followups: number
+  total_complaints: number
+  issues_resolved: number
+  open_issues: number
+  closed_issues: number
+  monthly_trend: { month: string; patients: number; followups: number; complaints: number }[]
+  by_engagement_type: { name: string; value: number }[]
+  by_feedback_category: { name: string; value: number }[]
+  by_region: { region: string; count: number }[]
+  top_observations: TelehealthEntry[]
+  top_risks: TelehealthEntry[]
+  top_recommendations: TelehealthEntry[]
+  top_opportunities: TelehealthEntry[]
+}
+
 export interface Database {
   public: {
     Tables: {
