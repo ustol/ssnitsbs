@@ -9,12 +9,10 @@ export interface AuditPayload {
     | 'created' | 'updated' | 'deleted' | 'uploaded_file' | 'set_display_picture'
     | 'login' | 'logout'
     | 'marked_done' | 'marked_pending' | 'marked_failed' | 'updated_notes'
-    | 'exported'
   entity_type:
     | 'external_meeting' | 'internal_meeting' | 'partnership' | 'document'
     | 'auth'
     | 'action_point'
-    | 'telehealth_entry'
   entity_id: string | null
   entity_name: string | null
   changes?: Record<string, { from: unknown; to: unknown }> | null

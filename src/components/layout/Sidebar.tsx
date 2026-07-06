@@ -2,8 +2,7 @@ import { NavLink, useNavigate, Link } from 'react-router-dom'
 import {
   LayoutDashboard, Network, Building2, Users2,
   BarChart3, FolderOpen, Building, UserCheck, Users, Settings, LogOut,
-  Activity, ClipboardList, Target, Database, MapPin, GitBranch, ListChecks, Briefcase, Info, Mic,
-  Stethoscope, CalendarRange, CalendarDays, PieChart, Download, SlidersHorizontal, type LucideIcon,
+  Activity, ClipboardList, Target, Database, MapPin, GitBranch, ListChecks, Briefcase, Info, Mic, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -150,15 +149,6 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             <SidebarLink to="/status-tracker" label="Status Tracker" icon={Activity} />
             <SidebarLink to="/performance-tracker" label="Big Push Tracker" icon={Target} />
             <SidebarLink to="/labour-ministry" label="Compliance Activities" icon={Briefcase} />
-
-            <SectionLabel>Telehealth</SectionLabel>
-            <SidebarLink to="/telehealth" label="Interactions" icon={Stethoscope} />
-            <SidebarLink to="/telehealth/weekly-summary" label="Weekly Summary" icon={CalendarRange} />
-            <SidebarLink to="/telehealth/monthly-consolidation" label="Monthly Consolidation" icon={CalendarDays} />
-            <SidebarLink to="/telehealth/quarterly-consolidation" label="Quarterly Consolidation" icon={BarChart3} />
-            <SidebarLink to="/telehealth/dashboard" label="TH Executive Dashboard" icon={PieChart} />
-            <SidebarLink to="/telehealth/export" label="TH Reports & Export" icon={Download} />
-            <SidebarLink to="/telehealth/config" label="TH Configuration" icon={SlidersHorizontal} />
 
             <SectionLabel>Reporting</SectionLabel>
             <SidebarLink to="/reports" label="Executive Reports" icon={BarChart3} />
