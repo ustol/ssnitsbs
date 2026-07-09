@@ -82,6 +82,7 @@ export function useCreateExternalMeeting() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [EXT_KEY] })
+      qc.invalidateQueries({ queryKey: ['partnerships'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting created')
     },
@@ -100,6 +101,7 @@ export function useUpdateExternalMeeting() {
     onSuccess: (_data: ExternalMeeting, { id }) => {
       qc.invalidateQueries({ queryKey: [EXT_KEY] })
       qc.invalidateQueries({ queryKey: [EXT_KEY, id] })
+      qc.invalidateQueries({ queryKey: ['partnerships'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting updated')
     },
@@ -116,6 +118,7 @@ export function useDeleteExternalMeeting() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [EXT_KEY] })
+      qc.invalidateQueries({ queryKey: ['partnerships'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting deleted')
     },
@@ -152,6 +155,7 @@ export function useCreateInternalMeeting() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [INT_KEY] })
+      qc.invalidateQueries({ queryKey: ['partnerships'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting created')
     },
@@ -170,6 +174,7 @@ export function useUpdateInternalMeeting() {
     onSuccess: (_data: InternalMeeting, { id }) => {
       qc.invalidateQueries({ queryKey: [INT_KEY] })
       qc.invalidateQueries({ queryKey: [INT_KEY, id] })
+      qc.invalidateQueries({ queryKey: ['partnerships'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting updated')
     },
@@ -186,6 +191,7 @@ export function useDeleteInternalMeeting() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [INT_KEY] })
+      qc.invalidateQueries({ queryKey: ['partnerships'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast.success('Meeting deleted')
     },

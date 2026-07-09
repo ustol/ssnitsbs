@@ -166,6 +166,41 @@ export function useUpdateActionPoint() {
   })
 }
 
+// ─── Load action points for a single meeting ─────────────────────────────────
+export function useActionPointsByMeeting(meetingId: string | null) {
+  return useQuery({
+    queryKey: ['action-points', 'by-meeting', meetingId],
+    enabled: !!meetingId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('action_points')
+        .select('*')
+        .eq('meeting_id', meetingId!)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return data as ActionPoint[]
+    },
+  })
+}
+
+// ─── Load action points for multiple meetings (partnership) ───────────────────
+export function useActionPointsByMeetingIds(meetingIds: string[]) {
+  return useQuery({
+    queryKey: ['action-points', 'by-meeting-ids', meetingIds],
+    enabled: meetingIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('action_points')
+        .select('*')
+        .in('meeting_id', meetingIds)
+        .order('meeting_date', { ascending: false })
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return data as ActionPoint[]
+    },
+  })
+}
+
 // ─── Delete ────────────────────────────────────────────────────────────────────
 export function useDeleteActionPoint() {
   const qc = useQueryClient()

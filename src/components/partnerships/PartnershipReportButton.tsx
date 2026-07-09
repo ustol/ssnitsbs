@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { AIDocumentModal } from '@/components/shared/AIDocumentModal'
 import { buildPartnershipReportPrompt } from '@/lib/partnershipReport'
 import { generatePartnershipReportPdf } from '@/lib/pdf'
+import { useActionPointsByMeetingIds } from '@/hooks/useActionPoints'
 import type { PartnershipWithRelations } from '@/types/database'
 
 interface VitalInfoItem {
@@ -19,7 +20,15 @@ interface PartnershipReportButtonProps {
 
 export function PartnershipReportButton({ partnership, vitalInfo }: PartnershipReportButtonProps) {
   const [open, setOpen] = useState(false)
-  const prompt = buildPartnershipReportPrompt(partnership, vitalInfo)
+
+  const meetingIds = [
+    ...(partnership.external_meetings ?? []).map(m => m.id),
+    ...(partnership.internal_meetings ?? []).map(m => m.id),
+  ]
+  const { data: trackerPoints = [] } = useActionPointsByMeetingIds(meetingIds)
+
+  const buildPromptByType = (type: 'detailed' | 'summary') =>
+    buildPartnershipReportPrompt(partnership, vitalInfo, type, trackerPoints)
 
   return (
     <>
@@ -29,7 +38,7 @@ export function PartnershipReportButton({ partnership, vitalInfo }: PartnershipR
       <AIDocumentModal
         open={open}
         onClose={() => setOpen(false)}
-        prompt={prompt}
+        buildPromptByType={buildPromptByType}
         headerTitle="AI Partnership Report"
         headerSubtitle="Progress report covering all meetings and outcomes"
         loadingText="Drafting partnership report…"
