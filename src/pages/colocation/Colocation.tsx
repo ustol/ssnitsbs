@@ -37,7 +37,7 @@ function pinColor(loc: ColocationLocation): string {
 
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
-const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; showLabels: boolean }>(function GhanaMap({ locations, showLabels }, ref) {
+const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; showLabels: boolean; hoveredId: string | null }>(function GhanaMap({ locations, showLabels, hoveredId }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
   const markersRef   = useRef<Record<string, any>>({})
@@ -103,7 +103,9 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
           iconSize: [PIN_ICON_SIZE.width, PIN_ICON_SIZE.height],
           iconAnchor: [PIN_ICON_SIZE.anchorX, PIN_ICON_SIZE.anchorY],
           tooltipAnchor: [0, -38],
-          html: buildPinSvg(color),
+          // Wrap in a div so hover scaling targets the inner element,
+          // leaving Leaflet's outer transform: translate(x,y) intact.
+          html: `<div style="width:100%;height:100%;transition:transform 0.15s ease;transform-origin:50% 100%">${buildPinSvg(color)}</div>`,
         })
       }
       return iconCache[color]
@@ -137,6 +139,24 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       markersRef.current[loc.id] = marker
     })
   }, [locations, showLabels])
+
+  // Hover highlight — scales the inner wrapper div, never touches Leaflet's outer transform
+  useEffect(() => {
+    // Reset every marker's inner div to normal
+    Object.entries(markersRef.current).forEach(([, m]: [string, any]) => {
+      const inner = m.getElement()?.firstElementChild as HTMLElement | null
+      if (inner) inner.style.transform = ''
+      if (!showLabels) m.closeTooltip()
+    })
+
+    if (!hoveredId) return
+    const m = markersRef.current[hoveredId]
+    if (!m) return
+
+    const inner = m.getElement()?.firstElementChild as HTMLElement | null
+    if (inner) inner.style.transform = 'scale(1.5)'
+    if (!showLabels) m.openTooltip()
+  }, [hoveredId, showLabels])
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 })
@@ -518,6 +538,7 @@ export function Colocation() {
   const [isExporting, setIsExporting] = useState(false)
   const [showLabels,  setShowLabels]  = useState(false)
   const [search,      setSearch]      = useState('')
+  const [hoveredId,   setHoveredId]   = useState<string | null>(null)
 
   const filteredLocations = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -550,7 +571,7 @@ export function Colocation() {
 
       {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
       <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
-        <GhanaMap ref={mapHandleRef} locations={filteredLocations} showLabels={showLabels} />
+        <GhanaMap ref={mapHandleRef} locations={filteredLocations} showLabels={showLabels} hoveredId={hoveredId} />
 
         <button
           type="button"
@@ -646,11 +667,14 @@ export function Colocation() {
           ) : filteredLocations.map((loc, i) => (
             <div
               key={loc.id}
+              onMouseEnter={() => setHoveredId(loc.id)}
+              onMouseLeave={() => setHoveredId(null)}
               style={{
                 display: 'grid', gridTemplateColumns: '1.2fr 1fr 76px 86px 72px',
                 alignItems: 'center',
                 borderBottom: '1px solid #f4f4f5',
-                background: i % 2 === 0 ? '#fff' : '#fafafa',
+                background: hoveredId === loc.id ? '#fff7f3' : i % 2 === 0 ? '#fff' : '#fafafa',
+                cursor: 'default',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', minWidth: 0 }}>
