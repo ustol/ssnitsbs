@@ -9,6 +9,7 @@ export interface ColocationLocation {
   ssnit_branch: string | null
   bank: string | null
   commencement_date: string | null
+  category: 'Planned' | 'Operational' | null
   created_at: string
 }
 
@@ -32,6 +33,7 @@ export function useAddLocation() {
     mutationFn: async (payload: {
       name: string; latitude: number; longitude: number
       ssnit_branch?: string | null; bank?: string | null; commencement_date?: string | null
+      category?: 'Planned' | 'Operational' | null
     }) => {
       const { data: { user } } = await supabase.auth.getUser()
       const { error } = await supabase
@@ -51,6 +53,7 @@ export function useUpdateLocation() {
     mutationFn: async (payload: {
       id: string; name: string; latitude: number; longitude: number
       ssnit_branch?: string | null; bank?: string | null; commencement_date?: string | null
+      category?: 'Planned' | 'Operational' | null
     }) => {
       const { id, ...fields } = payload
       const { error } = await supabase

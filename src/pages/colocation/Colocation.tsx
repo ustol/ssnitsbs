@@ -135,11 +135,12 @@ interface LocationModalProps {
 
 function LocationModal({ onClose, existing }: LocationModalProps) {
   const isEdit = !!existing
-  const [name,   setName]   = useState(existing?.name ?? '')
-  const [branch, setBranch] = useState(existing?.ssnit_branch ?? '')
-  const [lat,    setLat]    = useState(existing ? String(existing.latitude)  : '')
-  const [lng,    setLng]    = useState(existing ? String(existing.longitude) : '')
-  const [date,   setDate]   = useState(existing?.commencement_date ?? '')
+  const [name,     setName]     = useState(existing?.name ?? '')
+  const [branch,   setBranch]   = useState(existing?.ssnit_branch ?? '')
+  const [lat,      setLat]      = useState(existing ? String(existing.latitude)  : '')
+  const [lng,      setLng]      = useState(existing ? String(existing.longitude) : '')
+  const [date,     setDate]     = useState(existing?.commencement_date ?? '')
+  const [category, setCategory] = useState<'Planned' | 'Operational' | ''>(existing?.category ?? '')
 
   const { mutateAsync: add,    isPending: isAdding   } = useAddLocation()
   const { mutateAsync: update, isPending: isUpdating } = useUpdateLocation()
@@ -157,6 +158,7 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
       latitude,
       longitude,
       commencement_date: date || null,
+      category: (category || null) as 'Planned' | 'Operational' | null,
     }
     try {
       if (isEdit) { await update({ id: existing.id, ...payload }); toast.success('Location updated') }
@@ -208,6 +210,19 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
               placeholder="e.g. Greater Accra Regional Office"
               className="h-9 text-sm"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Category</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value as 'Planned' | 'Operational' | '')}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-zinc-900"
+            >
+              <option value="">— Select category —</option>
+              <option value="Planned">Planned</option>
+              <option value="Operational">Operational</option>
+            </select>
           </div>
 
           <div className="space-y-1.5">
@@ -571,13 +586,13 @@ export function Colocation() {
         </div>
 
         {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 82px', borderBottom: '1px solid #e4e4e7', background: '#fafafa', flexShrink: 0 }}>
-          {['Location Name', 'SSNIT Branch', 'Commencement Date', ''].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 76px 86px 72px', borderBottom: '1px solid #e4e4e7', background: '#fafafa', flexShrink: 0 }}>
+          {['Location Name', 'SSNIT Branch', 'Category', 'Date', ''].map((h, i) => (
             <div key={i} style={{
               padding: '9px 14px',
               fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
               color: '#71717a',
-              textAlign: i === 3 ? 'center' : 'left',
+              textAlign: i === 4 ? 'center' : 'left',
             }}>
               {h}
             </div>
@@ -608,7 +623,7 @@ export function Colocation() {
             <div
               key={loc.id}
               style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 82px',
+                display: 'grid', gridTemplateColumns: '1.2fr 1fr 76px 86px 72px',
                 alignItems: 'center',
                 borderBottom: '1px solid #f4f4f5',
                 background: i % 2 === 0 ? '#fff' : '#fafafa',
@@ -622,6 +637,22 @@ export function Colocation() {
               </div>
               <div style={{ padding: '11px 14px', fontSize: 12, color: '#52525b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {loc.ssnit_branch || '—'}
+              </div>
+              <div style={{ padding: '11px 10px' }}>
+                {loc.category ? (
+                  <span style={{
+                    display: 'inline-block',
+                    fontSize: 10, fontWeight: 600,
+                    padding: '2px 7px',
+                    borderRadius: 999,
+                    background: loc.category === 'Operational' ? '#dcfce7' : '#f4f4f5',
+                    color:      loc.category === 'Operational' ? '#15803d'  : '#52525b',
+                  }}>
+                    {loc.category}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, color: '#a1a1aa' }}>—</span>
+                )}
               </div>
               <div style={{ padding: '11px 14px', fontSize: 12, color: '#71717a' }}>
                 {loc.commencement_date
