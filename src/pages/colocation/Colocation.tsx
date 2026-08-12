@@ -41,6 +41,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
   const markersRef   = useRef<Record<string, any>>({})
+  const colorsRef    = useRef<Record<string, string>>({})
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
@@ -94,6 +95,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
     // Remove old markers
     Object.values(markersRef.current).forEach((m: any) => m.remove())
     markersRef.current = {}
+    colorsRef.current  = {}
 
     const iconCache: Record<string, any> = {}
     const getIcon = (color: string) => {
@@ -137,15 +139,20 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       }
       marker.addTo(map)
       markersRef.current[loc.id] = marker
+      colorsRef.current[loc.id]  = pinColor(loc)
     })
   }, [locations, showLabels])
 
-  // Hover highlight — scales the inner wrapper div, never touches Leaflet's outer transform
+  // Hover highlight — scales the inner wrapper div and swaps SVG color to black.
+  // Targets firstElementChild so Leaflet's outer transform: translate(x,y) is never touched.
   useEffect(() => {
-    // Reset every marker's inner div to normal
-    Object.entries(markersRef.current).forEach(([, m]: [string, any]) => {
+    // Reset every marker to its original color and size
+    Object.entries(markersRef.current).forEach(([id, m]: [string, any]) => {
       const inner = m.getElement()?.firstElementChild as HTMLElement | null
-      if (inner) inner.style.transform = ''
+      if (inner) {
+        inner.style.transform = ''
+        inner.innerHTML = buildPinSvg(colorsRef.current[id] ?? PIN_COLOR_DEFAULT)
+      }
       if (!showLabels) m.closeTooltip()
     })
 
@@ -154,7 +161,10 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
     if (!m) return
 
     const inner = m.getElement()?.firstElementChild as HTMLElement | null
-    if (inner) inner.style.transform = 'scale(1.5)'
+    if (inner) {
+      inner.style.transform = 'scale(1.5)'
+      inner.innerHTML = buildPinSvg('#18181b')
+    }
     if (!showLabels) m.openTooltip()
   }, [hoveredId, showLabels])
 
