@@ -21,10 +21,19 @@ export interface GhanaMapHandle {
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
 // Shared between the live Leaflet divIcon and the PDF export's canvas-drawn pins.
 const PIN_ICON_SIZE = { width: 28, height: 36, anchorX: 14, anchorY: 36 }
-const PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-  <path d="M14 0C8.477 0 4 4.477 4 10c0 7.5 10 26 10 26S24 17.5 24 10C24 4.477 19.523 0 14 0z" fill="#E8621A" stroke="#fff" stroke-width="1.5"/>
+const PIN_COLOR_OPERATIONAL = '#16a34a'
+const PIN_COLOR_DEFAULT     = '#E8621A'
+
+function buildPinSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+  <path d="M14 0C8.477 0 4 4.477 4 10c0 7.5 10 26 10 26S24 17.5 24 10C24 4.477 19.523 0 14 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
   <circle cx="14" cy="10" r="4" fill="#fff"/>
 </svg>`
+}
+
+function pinColor(loc: ColocationLocation): string {
+  return loc.category === 'Operational' ? PIN_COLOR_OPERATIONAL : PIN_COLOR_DEFAULT
+}
 
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
@@ -86,20 +95,26 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
     Object.values(markersRef.current).forEach((m: any) => m.remove())
     markersRef.current = {}
 
-    const pinIcon = L.divIcon({
-      className: '',
-      iconSize: [PIN_ICON_SIZE.width, PIN_ICON_SIZE.height],
-      iconAnchor: [PIN_ICON_SIZE.anchorX, PIN_ICON_SIZE.anchorY],
-      tooltipAnchor: [0, -38],
-      html: PIN_SVG,
-    })
+    const iconCache: Record<string, any> = {}
+    const getIcon = (color: string) => {
+      if (!iconCache[color]) {
+        iconCache[color] = L.divIcon({
+          className: '',
+          iconSize: [PIN_ICON_SIZE.width, PIN_ICON_SIZE.height],
+          iconAnchor: [PIN_ICON_SIZE.anchorX, PIN_ICON_SIZE.anchorY],
+          tooltipAnchor: [0, -38],
+          html: buildPinSvg(color),
+        })
+      }
+      return iconCache[color]
+    }
 
     locations.forEach(loc => {
       const lat = Number(loc.latitude)
       const lng = Number(loc.longitude)
       if (isNaN(lat) || isNaN(lng)) return
 
-      const marker = L.marker([lat, lng], { icon: pinIcon })
+      const marker = L.marker([lat, lng], { icon: getIcon(pinColor(loc)) })
 
       if (showLabels) {
         // offset compensates the icon's tooltipAnchor ([0,-38], tuned for
@@ -407,12 +422,21 @@ async function renderGhanaMapCanvas(map: any, locations: ColocationLocation[]): 
     }
   }
 
-  // Pins
-  const pinImg = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(PIN_SVG)}`)
+  // Pins — load each color once, then reuse
+  const pinImgCache: Record<string, HTMLImageElement> = {}
+  const getPinImg = async (color: string) => {
+    if (!pinImgCache[color]) {
+      pinImgCache[color] = await loadImage(
+        `data:image/svg+xml;charset=utf-8,${encodeURIComponent(buildPinSvg(color))}`
+      )
+    }
+    return pinImgCache[color]
+  }
   for (const loc of validLocations) {
     const { x, y } = project(Number(loc.latitude), Number(loc.longitude))
+    const img = await getPinImg(pinColor(loc))
     ctx.drawImage(
-      pinImg,
+      img,
       x - PIN_ICON_SIZE.anchorX * RES,
       y - PIN_ICON_SIZE.anchorY * RES,
       PIN_ICON_SIZE.width * RES,
