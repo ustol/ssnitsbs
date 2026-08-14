@@ -24,8 +24,9 @@ export interface GhanaMapHandle {
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
 // Shared between the live Leaflet divIcon and the PDF export's canvas-drawn pins.
 const PIN_ICON_SIZE = { width: 20, height: 25, anchorX: 10, anchorY: 25 }
-const PIN_COLOR_OPERATIONAL = '#f4a234'
-const PIN_COLOR_DEFAULT     = '#4b5563'
+const PIN_COLOR_OPERATIONAL  = '#f4a234'
+const PIN_COLOR_SSNIT_BRANCH = '#3b82f6'
+const PIN_COLOR_DEFAULT      = '#4b5563'
 
 function buildPinSvg(color: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="25" viewBox="0 0 28 36">
@@ -35,7 +36,9 @@ function buildPinSvg(color: string): string {
 }
 
 function pinColor(loc: ColocationLocation): string {
-  return loc.category === 'Operational' ? PIN_COLOR_OPERATIONAL : PIN_COLOR_DEFAULT
+  if (loc.category === 'Operational')  return PIN_COLOR_OPERATIONAL
+  if (loc.category === 'SSNIT Branch') return PIN_COLOR_SSNIT_BRANCH
+  return PIN_COLOR_DEFAULT
 }
 
 // ─── Region helpers ───────────────────────────────────────────────────────────
@@ -329,7 +332,7 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   const [lat,      setLat]      = useState(existing ? String(existing.latitude)  : '')
   const [lng,      setLng]      = useState(existing ? String(existing.longitude) : '')
   const [date,     setDate]     = useState(existing?.commencement_date ?? '')
-  const [category, setCategory] = useState<'Planned' | 'Operational' | ''>(existing?.category ?? '')
+  const [category, setCategory] = useState<'Planned' | 'Operational' | 'SSNIT Branch' | ''>(existing?.category ?? '')
 
   const { mutateAsync: add,    isPending: isAdding   } = useAddLocation()
   const { mutateAsync: update, isPending: isUpdating } = useUpdateLocation()
@@ -347,7 +350,7 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
       latitude,
       longitude,
       commencement_date: date || null,
-      category: (category || null) as 'Planned' | 'Operational' | null,
+      category: (category || null) as 'Planned' | 'Operational' | 'SSNIT Branch' | null,
     }
     try {
       if (isEdit) { await update({ id: existing.id, ...payload }); toast.success('Location updated') }
@@ -405,12 +408,13 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
             <label className="text-xs font-medium text-zinc-700">Category</label>
             <select
               value={category}
-              onChange={e => setCategory(e.target.value as 'Planned' | 'Operational' | '')}
+              onChange={e => setCategory(e.target.value as 'Planned' | 'Operational' | 'SSNIT Branch' | '')}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-zinc-900"
             >
               <option value="">— Select category —</option>
               <option value="Planned">Planned</option>
               <option value="Operational">Operational</option>
+              <option value="SSNIT Branch">SSNIT Branch</option>
             </select>
           </div>
 
@@ -920,8 +924,8 @@ export function Colocation() {
                     fontSize: 10, fontWeight: 600,
                     padding: '2px 7px',
                     borderRadius: 999,
-                    background: loc.category === 'Operational' ? '#dcfce7' : '#f4f4f5',
-                    color:      loc.category === 'Operational' ? '#15803d'  : '#52525b',
+                    background: loc.category === 'Operational' ? '#dcfce7' : loc.category === 'SSNIT Branch' ? '#dbeafe' : '#f4f4f5',
+                    color:      loc.category === 'Operational' ? '#15803d'  : loc.category === 'SSNIT Branch' ? '#1d4ed8'  : '#52525b',
                   }}>
                     {loc.category}
                   </span>
