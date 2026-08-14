@@ -65,7 +65,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       attributionControl: false,
       zoomControl: true,
     })
-    el.style.background = '#e85d04'
+    el.style.background = '#87ceeb'
     map.fitBounds(GHANA_BOUNDS, { padding: [16, 16] })
     mapRef.current = map
 
