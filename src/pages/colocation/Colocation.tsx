@@ -71,6 +71,20 @@ function featureBounds(feature: any): [[number, number], [number, number]] | nul
   ]
 }
 
+// Builds a world-sized polygon with the selected region cut out as a hole.
+// Leaflet's evenodd fill rule renders the area outside the hole as solid,
+// completely masking every other region, tile content, and label.
+function buildMaskFeature(feature: any): any | null {
+  const geom = feature?.geometry
+  if (!geom) return null
+  const world: [number, number][] = [[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]
+  const holes: [number, number][][]=
+    geom.type === 'Polygon'      ? [geom.coordinates[0]]                   :
+    geom.type === 'MultiPolygon' ? geom.coordinates.map((p: any) => p[0]) : []
+  if (!holes.length) return null
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [world, ...holes] }, properties: {} }
+}
+
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
 const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; showLabels: boolean; hoveredId: string | null }>(function GhanaMap({ locations, showLabels, hoveredId }, ref) {
@@ -81,6 +95,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
   const geojsonDataRef  = useRef<any>(null)
   const regionsLayerRef = useRef<any>(null)
   const tileLayerRef    = useRef<any>(null)
+  const maskLayerRef    = useRef<any>(null)
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
@@ -93,15 +108,11 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
         ? geojsonDataRef.current.features : []
       const match = features.find(f => featureContainsPoint(f, lat, lng))
 
-      // Swap out full regions layer — show only the matching region
+      // Remove previous layers
       if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
-      if (match) {
-        regionsLayerRef.current = L.geoJSON(match, {
-          style: { fillColor: '#e85d04', fillOpacity: 0.18, color: '#c24a00', weight: 2.5 },
-        }).addTo(map)
-      }
+      if (maskLayerRef.current)    { maskLayerRef.current.remove();    maskLayerRef.current    = null }
 
-      // Add OSM street tiles behind the region overlay
+      // Add OSM street tiles first (lowest z-order)
       if (!tileLayerRef.current) {
         tileLayerRef.current = L.tileLayer(
           'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -110,7 +121,21 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
         tileLayerRef.current.bringToBack()
       }
 
-      // Fit to region bounds so the whole region is centred and in view
+      // Solid mask covering everything outside the selected region
+      if (match) {
+        const maskFeat = buildMaskFeature(match)
+        if (maskFeat) {
+          maskLayerRef.current = L.geoJSON(maskFeat, {
+            style: { fillColor: '#87ceeb', fillOpacity: 1, color: 'none', weight: 0 },
+          }).addTo(map)
+        }
+        // Region border on top of the mask
+        regionsLayerRef.current = L.geoJSON(match, {
+          style: { fillColor: 'transparent', fillOpacity: 0, color: '#c24a00', weight: 2.5 },
+        }).addTo(map)
+      }
+
+      // Fit to region bounds so the whole region is centred
       const bounds = match ? featureBounds(match) : null
       if (bounds) map.fitBounds(bounds, { padding: [40, 40] })
       else map.flyTo([lat, lng], 10, { duration: 0.9 })
@@ -120,11 +145,12 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       const map = mapRef.current
       if (!map || typeof L === 'undefined') return
 
-      // Remove street tiles
+      // Tear down region-view layers
       if (tileLayerRef.current) { tileLayerRef.current.remove(); tileLayerRef.current = null }
-
-      // Restore full Ghana regions layer
+      if (maskLayerRef.current) { maskLayerRef.current.remove(); maskLayerRef.current = null }
       if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
+
+      // Restore full burnt-orange Ghana regions
       if (geojsonDataRef.current) {
         regionsLayerRef.current = L.geoJSON(geojsonDataRef.current, {
           style: { fillColor: '#e85d04', fillOpacity: 1, color: '#c24a00', weight: 1 },
