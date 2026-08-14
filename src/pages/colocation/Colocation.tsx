@@ -18,6 +18,7 @@ export interface GhanaMapHandle {
   getMap: () => any
   flyTo: (lat: number, lng: number) => void
   resetView: () => void
+  getFocusedRegionFeature: () => any | null
 }
 
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
@@ -92,13 +93,15 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
   const mapRef          = useRef<any>(null)
   const markersRef      = useRef<Record<string, any>>({})
   const colorsRef       = useRef<Record<string, string>>({})
-  const geojsonDataRef  = useRef<any>(null)
-  const regionsLayerRef = useRef<any>(null)
-  const tileLayerRef    = useRef<any>(null)
-  const maskLayerRef    = useRef<any>(null)
+  const geojsonDataRef     = useRef<any>(null)
+  const regionsLayerRef    = useRef<any>(null)
+  const tileLayerRef       = useRef<any>(null)
+  const maskLayerRef       = useRef<any>(null)
+  const focusedFeatureRef  = useRef<any>(null)
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
+    getFocusedRegionFeature: () => focusedFeatureRef.current,
 
     flyTo: (lat: number, lng: number) => {
       const map = mapRef.current
@@ -107,6 +110,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       const features: any[] = geojsonDataRef.current?.type === 'FeatureCollection'
         ? geojsonDataRef.current.features : []
       const match = features.find(f => featureContainsPoint(f, lat, lng))
+      focusedFeatureRef.current = match ?? null
 
       // Remove previous layers
       if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
@@ -144,6 +148,8 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
     resetView: () => {
       const map = mapRef.current
       if (!map || typeof L === 'undefined') return
+
+      focusedFeatureRef.current = null
 
       // Tear down region-view layers
       if (tileLayerRef.current) { tileLayerRef.current.remove(); tileLayerRef.current = null }
@@ -510,20 +516,24 @@ function extractPolygonRings(geojson: any): [number, number][][][] {
   return polygons
 }
 
-// Renders the map as a plain canvas — region polygons + pins — projected via
-// Leaflet's own latLngToContainerPoint, so it's a pixel-accurate duplicate of
-// what's on screen. (html2canvas was dropped: it can't correctly capture
-// Leaflet's marker DOM, which relies on nested CSS transforms for positioning.)
-async function renderGhanaMapCanvas(map: any, locations: ColocationLocation[]): Promise<HTMLCanvasElement> {
-  const RES = 3
-  const PAD = 24
+interface RenderOpts { showLabels?: boolean; focusedFeature?: any }
 
-  const sw = map.latLngToContainerPoint([GHANA_BOUNDS[0][0], GHANA_BOUNDS[0][1]])
-  const ne = map.latLngToContainerPoint([GHANA_BOUNDS[1][0], GHANA_BOUNDS[1][1]])
+async function renderGhanaMapCanvas(
+  map: any,
+  locations: ColocationLocation[],
+  { showLabels = false, focusedFeature }: RenderOpts = {},
+): Promise<HTMLCanvasElement> {
+  const RES = 3
+  const PAD = 32
 
   const validLocations = locations.filter(loc => !isNaN(Number(loc.latitude)) && !isNaN(Number(loc.longitude)))
-  const markerPoints = validLocations.map(loc => map.latLngToContainerPoint([Number(loc.latitude), Number(loc.longitude)]))
 
+  // Canvas extent: focused region bounds or full Ghana bounds
+  const extentBounds = focusedFeature ? featureBounds(focusedFeature) : null
+  const sw = map.latLngToContainerPoint(extentBounds ? extentBounds[0] : [GHANA_BOUNDS[0][0], GHANA_BOUNDS[0][1]])
+  const ne = map.latLngToContainerPoint(extentBounds ? extentBounds[1] : [GHANA_BOUNDS[1][0], GHANA_BOUNDS[1][1]])
+
+  const markerPoints = validLocations.map(loc => map.latLngToContainerPoint([Number(loc.latitude), Number(loc.longitude)]))
   const xs = [sw.x, ne.x, ...markerPoints.map(p => p.x)]
   const ys = [sw.y, ne.y, ...markerPoints.map(p => p.y)]
   const left   = Math.min(...xs) - PAD
@@ -542,23 +552,16 @@ async function renderGhanaMapCanvas(map: any, locations: ColocationLocation[]): 
     return { x: (pt.x - left) * RES, y: (pt.y - top) * RES }
   }
 
-  // Background
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  // Region polygons
-  const regions = await fetchGhanaRegions()
-  if (regions) {
-    ctx.fillStyle = '#eee8dc'
-    ctx.strokeStyle = '#8fa3b0'
+  const drawPolygons = (rings: [number, number][][][], fill: string, stroke: string) => {
+    ctx.fillStyle = fill
+    ctx.strokeStyle = stroke
     ctx.lineWidth = RES
-    for (const polygon of extractPolygonRings(regions)) {
+    for (const polygon of rings) {
       ctx.beginPath()
       for (const ring of polygon) {
         ring.forEach(([lng, lat], i) => {
           const { x, y } = project(lat, lng)
-          if (i === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
         })
         ctx.closePath()
       }
@@ -567,88 +570,131 @@ async function renderGhanaMapCanvas(map: any, locations: ColocationLocation[]): 
     }
   }
 
-  // Pins — load each color once, then reuse
+  // Background
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  if (focusedFeature) {
+    // Sky-blue surround + focused region fill
+    ctx.fillStyle = '#87ceeb'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    drawPolygons(extractPolygonRings(focusedFeature), '#e85d04', '#c24a00')
+  } else {
+    // All Ghana regions
+    const regions = await fetchGhanaRegions()
+    if (regions) drawPolygons(extractPolygonRings(regions), '#e85d04', '#c24a00')
+  }
+
+  // Pins
   const pinImgCache: Record<string, HTMLImageElement> = {}
   const getPinImg = async (color: string) => {
     if (!pinImgCache[color]) {
-      pinImgCache[color] = await loadImage(
-        `data:image/svg+xml;charset=utf-8,${encodeURIComponent(buildPinSvg(color))}`
-      )
+      pinImgCache[color] = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(buildPinSvg(color))}`)
     }
     return pinImgCache[color]
   }
   for (const loc of validLocations) {
     const { x, y } = project(Number(loc.latitude), Number(loc.longitude))
     const img = await getPinImg(pinColor(loc))
-    ctx.drawImage(
-      img,
-      x - PIN_ICON_SIZE.anchorX * RES,
-      y - PIN_ICON_SIZE.anchorY * RES,
-      PIN_ICON_SIZE.width * RES,
-      PIN_ICON_SIZE.height * RES,
-    )
+    ctx.drawImage(img, x - PIN_ICON_SIZE.anchorX * RES, y - PIN_ICON_SIZE.anchorY * RES, PIN_ICON_SIZE.width * RES, PIN_ICON_SIZE.height * RES)
+  }
+
+  // Labels (when enabled)
+  if (showLabels && validLocations.length) {
+    ctx.save()
+    ctx.font = `600 ${8 * RES}px Inter, sans-serif`
+    ctx.textBaseline = 'middle'
+    for (const loc of validLocations) {
+      const { x, y } = project(Number(loc.latitude), Number(loc.longitude))
+      const lx = x + (PIN_ICON_SIZE.anchorX + 3) * RES
+      const ly = y - PIN_ICON_SIZE.anchorY * RES * 0.55
+      const tw = ctx.measureText(loc.name).width
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'
+      ctx.fillRect(lx - 2 * RES, ly - 5 * RES, tw + 4 * RES, 10 * RES)
+      ctx.fillStyle = '#18181b'
+      ctx.fillText(loc.name, lx, ly)
+    }
+    ctx.restore()
   }
 
   return canvas
 }
 
-async function exportColocationPdf(locations: ColocationLocation[], map: any) {
+interface ExportOpts { showLabels: boolean; focusedFeature: any | null }
+
+async function exportColocationPdf(locations: ColocationLocation[], map: any, opts: ExportOpts) {
+  const { showLabels, focusedFeature } = opts
+  const isRegionMode = !!focusedFeature
+
+  // In region mode export only locations inside the focused region
+  const exportLocations = isRegionMode
+    ? locations.filter(loc => featureContainsPoint(focusedFeature, Number(loc.latitude), Number(loc.longitude)))
+    : locations
+
+  // Try common GeoJSON property names for the region label
+  const regionName: string = isRegionMode
+    ? (focusedFeature?.properties?.NAME_1 || focusedFeature?.properties?.name ||
+       focusedFeature?.properties?.region  || focusedFeature?.properties?.REGION || 'Selected Region')
+    : ''
+
+  const dateStr = new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' })
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-  // Page 1: locations table
+  // ── Page 1: table ──────────────────────────────────────────────────────────
   doc.setFontSize(13)
   doc.setTextColor(24, 24, 27)
-  doc.text('Colocation Locations', 14, 18)
+  doc.text(isRegionMode ? `Colocation — ${regionName}` : 'Colocation Locations', 14, 18)
+
   doc.setFontSize(8)
   doc.setTextColor(113, 113, 122)
   doc.text(
-    `Generated: ${new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' })}   ·   ${locations.length} location${locations.length !== 1 ? 's' : ''}`,
+    `Generated: ${dateStr}   ·   ${exportLocations.length} location${exportLocations.length !== 1 ? 's' : ''}` +
+    (showLabels ? '   ·   Labels on' : ''),
     14, 25,
   )
 
   autoTable(doc, {
     startY: 31,
-    head: [['Location Name', 'SSNIT Branch', 'Commencement Date']],
-    body: locations.map(loc => [loc.name, loc.ssnit_branch || '—', formatCommencementDate(loc.commencement_date)]),
+    head: [['Location Name', 'SSNIT Branch', 'Category', 'Commencement Date']],
+    body: exportLocations.map(loc => [
+      loc.name,
+      loc.ssnit_branch || '—',
+      loc.category     || '—',
+      formatCommencementDate(loc.commencement_date),
+    ]),
     styles: { fontSize: 9.5, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
     headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 10 },
     alternateRowStyles: { fillColor: [250, 250, 250] },
     tableLineColor: [228, 228, 231],
     tableLineWidth: 0.1,
-    columnStyles: {
-      0: { cellWidth: 68 },
-      1: { cellWidth: 68 },
-      2: { cellWidth: 46 },
-    },
+    columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 55 }, 2: { cellWidth: 30 }, 3: { cellWidth: 40 } },
   })
 
-  // Page 2: map of all locations
+  // ── Page 2: map ────────────────────────────────────────────────────────────
   if (map) {
-    const canvas = await renderGhanaMapCanvas(map, locations)
-
+    const canvas = await renderGhanaMapCanvas(map, exportLocations, { showLabels, focusedFeature })
     doc.addPage('a4', 'portrait')
 
-    const pageWidth  = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 14
-    const top = 24
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const margin = 14, mapTop = 24
 
     doc.setFontSize(13)
     doc.setTextColor(24, 24, 27)
-    doc.text('Location Map', margin, 18)
+    doc.text(isRegionMode ? `${regionName} — Location Map` : 'Location Map', margin, 18)
 
     const aspect = canvas.width / canvas.height
-    const maxW = pageWidth - margin * 2
-    const maxH = pageHeight - top - margin
-    let w = maxW
-    let h = w / aspect
+    const maxW = pageW - margin * 2
+    const maxH = pageH - mapTop - margin
+    let w = maxW, h = w / aspect
     if (h > maxH) { h = maxH; w = h * aspect }
 
-    doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pageWidth - w) / 2, top, w, h)
+    doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pageW - w) / 2, mapTop, w, h)
   }
 
-  const dateStamp = new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
-  doc.save(`colocation-locations — ${dateStamp}.pdf`)
+  const stamp = new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
+  const slug  = isRegionMode ? regionName.toLowerCase().replace(/\s+/g, '-') : 'locations'
+  doc.save(`colocation-${slug} — ${stamp}.pdf`)
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -696,7 +742,10 @@ export function Colocation() {
   async function handleExport() {
     setIsExporting(true)
     try {
-      await exportColocationPdf(locations, mapHandleRef.current?.getMap())
+      await exportColocationPdf(locations, mapHandleRef.current?.getMap(), {
+        showLabels: showLabels,
+        focusedFeature: mapHandleRef.current?.getFocusedRegionFeature() ?? null,
+      })
     } catch (err) {
       toast.error((err as Error).message || 'Failed to export PDF')
     } finally {
