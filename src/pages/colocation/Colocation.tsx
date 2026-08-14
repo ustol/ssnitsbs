@@ -112,6 +112,13 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       const match = features.find(f => featureContainsPoint(f, lat, lng))
       focusedFeatureRef.current = match ?? null
 
+      // Hide markers outside the focused region
+      Object.values(markersRef.current).forEach((m: any) => {
+        const { lat: mlat, lng: mlng } = m.getLatLng()
+        const el = m.getElement()
+        if (el) el.style.display = (match && !featureContainsPoint(match, mlat, mlng)) ? 'none' : ''
+      })
+
       // Remove previous layers
       if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
       if (maskLayerRef.current)    { maskLayerRef.current.remove();    maskLayerRef.current    = null }
@@ -150,6 +157,12 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       if (!map || typeof L === 'undefined') return
 
       focusedFeatureRef.current = null
+
+      // Restore all markers
+      Object.values(markersRef.current).forEach((m: any) => {
+        const el = m.getElement()
+        if (el) el.style.display = ''
+      })
 
       // Tear down region-view layers
       if (tileLayerRef.current) { tileLayerRef.current.remove(); tileLayerRef.current = null }
@@ -262,6 +275,16 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       markersRef.current[loc.id] = marker
       colorsRef.current[loc.id]  = pinColor(loc)
     })
+
+    // If a region is already focused, hide markers outside it
+    const focused = focusedFeatureRef.current
+    if (focused) {
+      Object.values(markersRef.current).forEach((m: any) => {
+        const { lat, lng } = m.getLatLng()
+        const el = m.getElement()
+        if (el) el.style.display = featureContainsPoint(focused, lat, lng) ? '' : 'none'
+      })
+    }
   }, [locations, showLabels])
 
   // Hover highlight — scales the inner wrapper div and swaps SVG color to black.
