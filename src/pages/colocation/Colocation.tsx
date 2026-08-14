@@ -21,8 +21,8 @@ export interface GhanaMapHandle {
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
 // Shared between the live Leaflet divIcon and the PDF export's canvas-drawn pins.
 const PIN_ICON_SIZE = { width: 28, height: 36, anchorX: 14, anchorY: 36 }
-const PIN_COLOR_OPERATIONAL = '#16a34a'
-const PIN_COLOR_DEFAULT     = '#E8621A'
+const PIN_COLOR_OPERATIONAL = '#f4a234'
+const PIN_COLOR_DEFAULT     = '#4b5563'
 
 function buildPinSvg(color: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
@@ -65,7 +65,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       attributionControl: false,
       zoomControl: true,
     })
-    el.style.background = '#cfe0ea'
+    el.style.background = '#e85d04'
     map.fitBounds(GHANA_BOUNDS, { padding: [16, 16] })
     mapRef.current = map
 
@@ -75,7 +75,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       .then(data => {
         if (!mounted || !mapRef.current) return
         L.geoJSON(data, {
-          style: { fillColor: '#eee8dc', fillOpacity: 1, color: '#8fa3b0', weight: 1 },
+          style: { fillColor: '#e85d04', fillOpacity: 1, color: '#c24a00', weight: 1 },
         }).addTo(map)
       })
       .catch(() => {})
