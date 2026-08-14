@@ -16,6 +16,8 @@ import { toast } from 'sonner'
 
 export interface GhanaMapHandle {
   getMap: () => any
+  flyTo: (lat: number, lng: number) => void
+  resetView: () => void
 }
 
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
@@ -45,6 +47,12 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
+    flyTo: (lat: number, lng: number) => {
+      mapRef.current?.flyTo([lat, lng], 10, { duration: 0.9 })
+    },
+    resetView: () => {
+      mapRef.current?.fitBounds(GHANA_BOUNDS, { padding: [16, 16] })
+    },
   }))
 
   // Init map once
@@ -549,6 +557,20 @@ export function Colocation() {
   const [showLabels,  setShowLabels]  = useState(false)
   const [search,      setSearch]      = useState('')
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
+  const [selectedId,  setSelectedId]  = useState<string | null>(null)
+
+  function handleSelectLocation(loc: ColocationLocation) {
+    const lat = Number(loc.latitude)
+    const lng = Number(loc.longitude)
+    if (isNaN(lat) || isNaN(lng)) return
+    setSelectedId(loc.id)
+    mapHandleRef.current?.flyTo(lat, lng)
+  }
+
+  function handleResetView() {
+    setSelectedId(null)
+    mapHandleRef.current?.resetView()
+  }
 
   const filteredLocations = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -582,6 +604,16 @@ export function Colocation() {
       {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
       <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
         <GhanaMap ref={mapHandleRef} locations={filteredLocations} showLabels={showLabels} hoveredId={hoveredId} />
+
+        {selectedId && (
+          <button
+            type="button"
+            onClick={handleResetView}
+            className="absolute top-3 left-3 z-[1000] flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur-sm"
+          >
+            ← All locations
+          </button>
+        )}
 
         <button
           type="button"
@@ -679,12 +711,18 @@ export function Colocation() {
               key={loc.id}
               onMouseEnter={() => setHoveredId(loc.id)}
               onMouseLeave={() => setHoveredId(null)}
+              onClick={() => handleSelectLocation(loc)}
               style={{
                 display: 'grid', gridTemplateColumns: '1.2fr 1fr 76px 86px 72px',
                 alignItems: 'center',
                 borderBottom: '1px solid #f4f4f5',
-                background: hoveredId === loc.id ? '#fff7f3' : i % 2 === 0 ? '#fff' : '#fafafa',
-                cursor: 'default',
+                background: selectedId === loc.id ? '#fff0e6'
+                          : hoveredId === loc.id  ? '#fff7f3'
+                          : i % 2 === 0           ? '#fff'
+                          :                         '#fafafa',
+                cursor: 'pointer',
+                outline: selectedId === loc.id ? '2px solid #E8621A' : 'none',
+                outlineOffset: '-2px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', minWidth: 0 }}>
