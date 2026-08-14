@@ -408,7 +408,11 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
             <label className="text-xs font-medium text-zinc-700">Category</label>
             <select
               value={category}
-              onChange={e => setCategory(e.target.value as 'Planned' | 'Operational' | 'SSNIT Branch' | '')}
+              onChange={e => {
+                const val = e.target.value as 'Planned' | 'Operational' | 'SSNIT Branch' | ''
+                setCategory(val)
+                if (val === 'SSNIT Branch') setDate('')
+              }}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-zinc-900"
             >
               <option value="">— Select category —</option>
@@ -418,15 +422,17 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
             </select>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-700">Commencement Date</label>
-            <Input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="h-9 text-sm"
-            />
-          </div>
+          {category !== 'SSNIT Branch' && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-700">Commencement Date</label>
+              <Input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700">
