@@ -37,21 +37,101 @@ function pinColor(loc: ColocationLocation): string {
   return loc.category === 'Operational' ? PIN_COLOR_OPERATIONAL : PIN_COLOR_DEFAULT
 }
 
+// ─── Region helpers ───────────────────────────────────────────────────────────
+
+function pointInRing(px: number, py: number, ring: [number, number][]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j]
+    if (((yi > py) !== (yj > py)) && px < (xj - xi) * (py - yi) / (yj - yi) + xi)
+      inside = !inside
+  }
+  return inside
+}
+
+function featureContainsPoint(feature: any, lat: number, lng: number): boolean {
+  const geom = feature?.geometry
+  if (!geom) return false
+  const polys: [number, number][][][] =
+    geom.type === 'Polygon'      ? [geom.coordinates] :
+    geom.type === 'MultiPolygon' ? geom.coordinates   : []
+  return polys.some(poly => pointInRing(lng, lat, poly[0]))
+}
+
+function featureBounds(feature: any): [[number, number], [number, number]] | null {
+  const geom = feature?.geometry
+  if (!geom) return null
+  const pts: number[][] = []
+  const collect = (v: any) => Array.isArray(v[0]) ? v.forEach(collect) : pts.push(v)
+  collect(geom.coordinates)
+  if (!pts.length) return null
+  return [
+    [Math.min(...pts.map(p => p[1])), Math.min(...pts.map(p => p[0]))],
+    [Math.max(...pts.map(p => p[1])), Math.max(...pts.map(p => p[0]))],
+  ]
+}
+
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
 const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; showLabels: boolean; hoveredId: string | null }>(function GhanaMap({ locations, showLabels, hoveredId }, ref) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef       = useRef<any>(null)
-  const markersRef   = useRef<Record<string, any>>({})
-  const colorsRef    = useRef<Record<string, string>>({})
+  const containerRef    = useRef<HTMLDivElement>(null)
+  const mapRef          = useRef<any>(null)
+  const markersRef      = useRef<Record<string, any>>({})
+  const colorsRef       = useRef<Record<string, string>>({})
+  const geojsonDataRef  = useRef<any>(null)
+  const regionsLayerRef = useRef<any>(null)
+  const tileLayerRef    = useRef<any>(null)
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
+
     flyTo: (lat: number, lng: number) => {
-      mapRef.current?.flyTo([lat, lng], 10, { duration: 0.9 })
+      const map = mapRef.current
+      if (!map || typeof L === 'undefined') return
+
+      const features: any[] = geojsonDataRef.current?.type === 'FeatureCollection'
+        ? geojsonDataRef.current.features : []
+      const match = features.find(f => featureContainsPoint(f, lat, lng))
+
+      // Swap out full regions layer — show only the matching region
+      if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
+      if (match) {
+        regionsLayerRef.current = L.geoJSON(match, {
+          style: { fillColor: '#e85d04', fillOpacity: 0.18, color: '#c24a00', weight: 2.5 },
+        }).addTo(map)
+      }
+
+      // Add OSM street tiles behind the region overlay
+      if (!tileLayerRef.current) {
+        tileLayerRef.current = L.tileLayer(
+          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          { maxZoom: 19, attribution: '© OpenStreetMap contributors' },
+        ).addTo(map)
+        tileLayerRef.current.bringToBack()
+      }
+
+      // Fit to region bounds so the whole region is centred and in view
+      const bounds = match ? featureBounds(match) : null
+      if (bounds) map.fitBounds(bounds, { padding: [40, 40] })
+      else map.flyTo([lat, lng], 10, { duration: 0.9 })
     },
+
     resetView: () => {
-      mapRef.current?.fitBounds(GHANA_BOUNDS, { padding: [16, 16] })
+      const map = mapRef.current
+      if (!map || typeof L === 'undefined') return
+
+      // Remove street tiles
+      if (tileLayerRef.current) { tileLayerRef.current.remove(); tileLayerRef.current = null }
+
+      // Restore full Ghana regions layer
+      if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
+      if (geojsonDataRef.current) {
+        regionsLayerRef.current = L.geoJSON(geojsonDataRef.current, {
+          style: { fillColor: '#e85d04', fillOpacity: 1, color: '#c24a00', weight: 1 },
+        }).addTo(map)
+      }
+
+      map.fitBounds(GHANA_BOUNDS, { padding: [16, 16] })
     },
   }))
 
@@ -82,7 +162,8 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(data => {
         if (!mounted || !mapRef.current) return
-        L.geoJSON(data, {
+        geojsonDataRef.current = data
+        regionsLayerRef.current = L.geoJSON(data, {
           style: { fillColor: '#e85d04', fillOpacity: 1, color: '#c24a00', weight: 1 },
         }).addTo(map)
       })
