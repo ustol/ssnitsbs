@@ -20,12 +20,12 @@ export interface GhanaMapHandle {
 
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
 // Shared between the live Leaflet divIcon and the PDF export's canvas-drawn pins.
-const PIN_ICON_SIZE = { width: 28, height: 36, anchorX: 14, anchorY: 36 }
+const PIN_ICON_SIZE = { width: 20, height: 25, anchorX: 10, anchorY: 25 }
 const PIN_COLOR_OPERATIONAL = '#f4a234'
 const PIN_COLOR_DEFAULT     = '#4b5563'
 
 function buildPinSvg(color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="25" viewBox="0 0 28 36">
   <path d="M14 0C8.477 0 4 4.477 4 10c0 7.5 10 26 10 26S24 17.5 24 10C24 4.477 19.523 0 14 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
   <circle cx="14" cy="10" r="4" fill="#fff"/>
 </svg>`
