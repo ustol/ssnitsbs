@@ -148,7 +148,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
         }
         // Region border on top of the mask
         regionsLayerRef.current = L.geoJSON(match, {
-          style: { fillColor: 'transparent', fillOpacity: 0, color: '#c24a00', weight: 2.5 },
+          style: { fillColor: 'transparent', fillOpacity: 0, color: '#8fa3b0', weight: 2.5 },
         }).addTo(map)
       }
 
@@ -180,7 +180,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       // Restore full burnt-orange Ghana regions
       if (geojsonDataRef.current) {
         regionsLayerRef.current = L.geoJSON(geojsonDataRef.current, {
-          style: { fillColor: '#e85d04', fillOpacity: 1, color: '#c24a00', weight: 1 },
+          style: { fillColor: '#eee8dc', fillOpacity: 1, color: '#8fa3b0', weight: 1 },
         }).addTo(map)
       }
 
@@ -217,7 +217,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
         if (!mounted || !mapRef.current) return
         geojsonDataRef.current = data
         regionsLayerRef.current = L.geoJSON(data, {
-          style: { fillColor: '#e85d04', fillOpacity: 1, color: '#c24a00', weight: 1 },
+          style: { fillColor: '#eee8dc', fillOpacity: 1, color: '#8fa3b0', weight: 1 },
         }).addTo(map)
       })
       .catch(() => {})
@@ -619,11 +619,11 @@ async function renderGhanaMapCanvas(
     // Sky-blue surround + focused region fill
     ctx.fillStyle = '#87ceeb'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    drawPolygons(extractPolygonRings(focusedFeature), '#e85d04', '#c24a00')
+    drawPolygons(extractPolygonRings(focusedFeature), '#eee8dc', '#8fa3b0')
   } else {
     // All Ghana regions
     const regions = await fetchGhanaRegions()
-    if (regions) drawPolygons(extractPolygonRings(regions), '#e85d04', '#c24a00')
+    if (regions) drawPolygons(extractPolygonRings(regions), '#eee8dc', '#8fa3b0')
   }
 
   // Pins
