@@ -115,11 +115,14 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       const match = features.find(f => featureContainsPoint(f, lat, lng))
       focusedFeatureRef.current = match ?? null
 
-      // Hide markers outside the focused region
+      // Hide markers (and their tooltips) outside the focused region
       Object.values(markersRef.current).forEach((m: any) => {
         const { lat: mlat, lng: mlng } = m.getLatLng()
+        const hide = match && !featureContainsPoint(match, mlat, mlng)
         const el = m.getElement()
-        if (el) el.style.display = (match && !featureContainsPoint(match, mlat, mlng)) ? 'none' : ''
+        if (el) el.style.display = hide ? 'none' : ''
+        const tooltipEl = m.getTooltip()?.getElement?.()
+        if (tooltipEl) tooltipEl.style.display = hide ? 'none' : ''
       })
 
       // Remove previous layers
@@ -161,10 +164,12 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
 
       focusedFeatureRef.current = null
 
-      // Restore all markers
+      // Restore all markers and tooltips
       Object.values(markersRef.current).forEach((m: any) => {
         const el = m.getElement()
         if (el) el.style.display = ''
+        const tooltipEl = m.getTooltip()?.getElement?.()
+        if (tooltipEl) tooltipEl.style.display = ''
       })
 
       // Tear down region-view layers
@@ -284,8 +289,11 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
     if (focused) {
       Object.values(markersRef.current).forEach((m: any) => {
         const { lat, lng } = m.getLatLng()
+        const inside = featureContainsPoint(focused, lat, lng)
         const el = m.getElement()
-        if (el) el.style.display = featureContainsPoint(focused, lat, lng) ? '' : 'none'
+        if (el) el.style.display = inside ? '' : 'none'
+        const tooltipEl = m.getTooltip()?.getElement?.()
+        if (tooltipEl) tooltipEl.style.display = inside ? '' : 'none'
       })
     }
   }, [locations, showLabels])
