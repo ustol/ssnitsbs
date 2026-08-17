@@ -91,16 +91,50 @@ function buildMaskFeature(feature: any): any | null {
 
 // ─── Ghana Map ────────────────────────────────────────────────────────────────
 
-const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; showLabels: boolean; hoveredId: string | null }>(function GhanaMap({ locations, showLabels, hoveredId }, ref) {
+const GhanaMap = forwardRef<GhanaMapHandle, {
+  locations: ColocationLocation[]
+  showLabels: boolean
+  hoveredId: string | null
+  showOperational: boolean
+  showPlanned: boolean
+  showSsnitBranch: boolean
+}>(function GhanaMap({ locations, showLabels, hoveredId, showOperational, showPlanned, showSsnitBranch }, ref) {
   const containerRef    = useRef<HTMLDivElement>(null)
   const mapRef          = useRef<any>(null)
   const markersRef      = useRef<Record<string, any>>({})
   const colorsRef       = useRef<Record<string, string>>({})
+  const locsByIdRef     = useRef<Record<string, ColocationLocation>>({})
   const geojsonDataRef     = useRef<any>(null)
   const regionsLayerRef    = useRef<any>(null)
   const tileLayerRef       = useRef<any>(null)
   const maskLayerRef       = useRef<any>(null)
   const focusedFeatureRef  = useRef<any>(null)
+
+  // Keep latest show* values in refs so flyTo/resetView always see current state
+  const showOpRef     = useRef(showOperational)
+  const showPlRef     = useRef(showPlanned)
+  const showSsnitRef  = useRef(showSsnitBranch)
+  showOpRef.current    = showOperational
+  showPlRef.current    = showPlanned
+  showSsnitRef.current = showSsnitBranch
+
+  function applyMarkerVisibility() {
+    const focused = focusedFeatureRef.current
+    Object.entries(markersRef.current).forEach(([id, m]: [string, any]) => {
+      const loc = locsByIdRef.current[id]
+      const catOk = !loc
+        || (loc.category === 'Operational'  ? showOpRef.current
+          : loc.category === 'SSNIT Branch' ? showSsnitRef.current
+          : showPlRef.current)
+      const { lat, lng } = m.getLatLng()
+      const regionOk = !focused || featureContainsPoint(focused, lat, lng)
+      const visible = !!(catOk && regionOk)
+      const el = m.getElement()
+      if (el) el.style.display = visible ? '' : 'none'
+      const tooltipEl = m.getTooltip()?.getElement?.()
+      if (tooltipEl) tooltipEl.style.display = visible ? '' : 'none'
+    })
+  }
 
   useImperativeHandle(ref, () => ({
     getMap: () => mapRef.current,
@@ -115,15 +149,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       const match = features.find(f => featureContainsPoint(f, lat, lng))
       focusedFeatureRef.current = match ?? null
 
-      // Hide markers (and their tooltips) outside the focused region
-      Object.values(markersRef.current).forEach((m: any) => {
-        const { lat: mlat, lng: mlng } = m.getLatLng()
-        const hide = match && !featureContainsPoint(match, mlat, mlng)
-        const el = m.getElement()
-        if (el) el.style.display = hide ? 'none' : ''
-        const tooltipEl = m.getTooltip()?.getElement?.()
-        if (tooltipEl) tooltipEl.style.display = hide ? 'none' : ''
-      })
+      applyMarkerVisibility()
 
       // Remove previous layers
       if (regionsLayerRef.current) { regionsLayerRef.current.remove(); regionsLayerRef.current = null }
@@ -164,13 +190,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
 
       focusedFeatureRef.current = null
 
-      // Restore all markers and tooltips
-      Object.values(markersRef.current).forEach((m: any) => {
-        const el = m.getElement()
-        if (el) el.style.display = ''
-        const tooltipEl = m.getTooltip()?.getElement?.()
-        if (tooltipEl) tooltipEl.style.display = ''
-      })
+      applyMarkerVisibility()
 
       // Tear down region-view layers
       if (tileLayerRef.current) { tileLayerRef.current.remove(); tileLayerRef.current = null }
@@ -238,6 +258,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
     Object.values(markersRef.current).forEach((m: any) => m.remove())
     markersRef.current = {}
     colorsRef.current  = {}
+    locsByIdRef.current = {}
 
     const iconCache: Record<string, any> = {}
     const getIcon = (color: string) => {
@@ -281,23 +302,19 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
         )
       }
       marker.addTo(map)
-      markersRef.current[loc.id] = marker
-      colorsRef.current[loc.id]  = pinColor(loc)
+      markersRef.current[loc.id]  = marker
+      colorsRef.current[loc.id]   = pinColor(loc)
+      locsByIdRef.current[loc.id] = loc
     })
 
-    // If a region is already focused, hide markers outside it
-    const focused = focusedFeatureRef.current
-    if (focused) {
-      Object.values(markersRef.current).forEach((m: any) => {
-        const { lat, lng } = m.getLatLng()
-        const inside = featureContainsPoint(focused, lat, lng)
-        const el = m.getElement()
-        if (el) el.style.display = inside ? '' : 'none'
-        const tooltipEl = m.getTooltip()?.getElement?.()
-        if (tooltipEl) tooltipEl.style.display = inside ? '' : 'none'
-      })
-    }
+    applyMarkerVisibility()
   }, [locations, showLabels])
+
+  // Re-apply visibility when category filters change (no marker rebuild needed)
+  useEffect(() => {
+    if (mapRef.current) applyMarkerVisibility()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showOperational, showPlanned, showSsnitBranch])
 
   // Hover highlight — scales the inner wrapper div and swaps SVG color to black.
   // Targets firstElementChild so Leaflet's outer transform: translate(x,y) is never touched.
@@ -749,7 +766,10 @@ export function Colocation() {
   const [addOpen,     setAddOpen]     = useState(false)
   const [editTarget,  setEditTarget]  = useState<ColocationLocation | null>(null)
   const [isExporting, setIsExporting] = useState(false)
-  const [showLabels,  setShowLabels]  = useState(false)
+  const [showLabels,       setShowLabels]       = useState(false)
+  const [showOperational,  setShowOperational]  = useState(true)
+  const [showPlanned,      setShowPlanned]      = useState(true)
+  const [showSsnitBranch,  setShowSsnitBranch]  = useState(true)
   const [search,      setSearch]      = useState('')
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
   const [selectedId,  setSelectedId]  = useState<string | null>(null)
@@ -801,7 +821,15 @@ export function Colocation() {
 
       {/* ── Map: bottom on mobile (order-2), left on desktop (order-1) ── */}
       <div className="order-2 md:order-1 relative min-w-0 flex-1 md:flex-1">
-        <GhanaMap ref={mapHandleRef} locations={filteredLocations} showLabels={showLabels} hoveredId={hoveredId} />
+        <GhanaMap
+          ref={mapHandleRef}
+          locations={filteredLocations}
+          showLabels={showLabels}
+          hoveredId={hoveredId}
+          showOperational={showOperational}
+          showPlanned={showPlanned}
+          showSsnitBranch={showSsnitBranch}
+        />
 
         {selectedId && (
           <button
@@ -813,16 +841,51 @@ export function Colocation() {
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setShowLabels(v => !v)}
-          className="absolute top-3 right-3 z-[1000] flex items-center gap-2 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur-sm"
-        >
-          Labels
-          <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${showLabels ? 'bg-brand' : 'bg-zinc-300'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${showLabels ? 'translate-x-4' : 'translate-x-0.5'}`} />
-          </span>
-        </button>
+        {/* Map controls panel */}
+        <div className="absolute top-3 right-3 z-[1000] flex flex-col rounded-xl border border-zinc-200 bg-white/95 shadow-sm backdrop-blur-sm overflow-hidden min-w-[168px]">
+          {/* Labels row */}
+          <button type="button" onClick={() => setShowLabels(v => !v)}
+            className="flex items-center justify-between gap-6 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors">
+            Labels
+            <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showLabels ? 'bg-brand' : 'bg-zinc-300'}`}>
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showLabels ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+          <div className="mx-2 border-t border-zinc-100" />
+          {/* Operational */}
+          <button type="button" onClick={() => setShowOperational(v => !v)}
+            className="flex items-center justify-between gap-6 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#f4a234] shrink-0" />
+              Operational
+            </span>
+            <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showOperational ? 'bg-[#f4a234]' : 'bg-zinc-300'}`}>
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showOperational ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+          {/* Planned */}
+          <button type="button" onClick={() => setShowPlanned(v => !v)}
+            className="flex items-center justify-between gap-6 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#4b5563] shrink-0" />
+              Planned
+            </span>
+            <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showPlanned ? 'bg-[#4b5563]' : 'bg-zinc-300'}`}>
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showPlanned ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+          {/* SSNIT Branches */}
+          <button type="button" onClick={() => setShowSsnitBranch(v => !v)}
+            className="flex items-center justify-between gap-6 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#3b82f6] shrink-0" />
+              SSNIT Branches
+            </span>
+            <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showSsnitBranch ? 'bg-[#3b82f6]' : 'bg-zinc-300'}`}>
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showSsnitBranch ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* ── Table panel: top on mobile (order-1), right on desktop (order-2) ── */}
