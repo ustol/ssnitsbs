@@ -263,14 +263,15 @@ const GhanaMap = forwardRef<GhanaMapHandle, { locations: ColocationLocation[]; s
       const marker = L.marker([lat, lng], { icon: getIcon(pinColor(loc)) })
 
       if (showLabels) {
-        // offset compensates the icon's tooltipAnchor ([0,-38], tuned for
-        // direction:'top') so the label instead sits beside the pin's head.
+        const labelCat = loc.category === 'Operational' ? 'colocation-label-operational'
+          : loc.category === 'SSNIT Branch'             ? 'colocation-label-ssnit'
+          :                                               'colocation-label-planned'
         marker.bindTooltip(loc.name, {
           permanent: true,
           direction: 'right',
           offset: [20, 12],
           opacity: 1,
-          className: 'colocation-label',
+          className: `colocation-label ${labelCat}`,
         })
       } else {
         marker.bindTooltip(

@@ -66,15 +66,15 @@
 
 /* Colocation map: permanent location-name labels */
 .leaflet-tooltip.colocation-label {
-  background: rgba(255, 255, 255, 0.92);
   border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  color: #18181b;
+  color: #fff;
   border-radius: 4px;
 }
-.leaflet-tooltip.colocation-label::before {
-  display: none;
-}
+.leaflet-tooltip.colocation-label::before { display: none; }
+.leaflet-tooltip.colocation-label-operational { background: #ea580c; }
+.leaflet-tooltip.colocation-label-planned     { background: #374151; }
+.leaflet-tooltip.colocation-label-ssnit       { background: #3b82f6; }
