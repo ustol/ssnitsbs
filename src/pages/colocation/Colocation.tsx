@@ -290,7 +290,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, {
         marker.bindTooltip(loc.name, {
           permanent: true,
           direction: 'right',
-          offset: [20, 12],
+          offset: [10, 26],
           opacity: 1,
           className: `colocation-label ${labelCat}`,
         })
