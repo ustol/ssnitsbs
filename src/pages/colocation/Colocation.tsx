@@ -795,6 +795,12 @@ export function Colocation() {
     )
   }, [locations, search])
 
+  const categoryCounts = useMemo(() => ({
+    operational: locations.filter(l => l.category === 'Operational').length,
+    planned:     locations.filter(l => l.category === 'Planned').length,
+    ssnit:       locations.filter(l => l.category === 'SSNIT Branch').length,
+  }), [locations])
+
   async function handleDelete(loc: ColocationLocation) {
     if (!window.confirm(`Remove "${loc.name}"? This cannot be undone.`)) return
     try { await deleteLocation(loc.id); toast.success(`"${loc.name}" removed`) }
@@ -858,6 +864,7 @@ export function Colocation() {
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full bg-[#f4a234] shrink-0" />
               Operational
+              <span className="text-zinc-400 font-normal">{categoryCounts.operational}</span>
             </span>
             <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showOperational ? 'bg-[#f4a234]' : 'bg-zinc-300'}`}>
               <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showOperational ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
@@ -869,6 +876,7 @@ export function Colocation() {
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full bg-[#4b5563] shrink-0" />
               Planned
+              <span className="text-zinc-400 font-normal">{categoryCounts.planned}</span>
             </span>
             <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showPlanned ? 'bg-[#4b5563]' : 'bg-zinc-300'}`}>
               <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showPlanned ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
@@ -880,6 +888,7 @@ export function Colocation() {
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full bg-[#3b82f6] shrink-0" />
               SSNIT Branches
+              <span className="text-zinc-400 font-normal">{categoryCounts.ssnit}</span>
             </span>
             <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${showSsnitBranch ? 'bg-[#3b82f6]' : 'bg-zinc-300'}`}>
               <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showSsnitBranch ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
