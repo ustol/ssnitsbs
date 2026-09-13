@@ -355,8 +355,16 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   const isEdit = !!existing
   const [name,     setName]     = useState(existing?.name ?? '')
   const [branch,   setBranch]   = useState(existing?.ssnit_branch ?? '')
-  const [lat,      setLat]      = useState(existing ? String(existing.latitude)  : '')
-  const [lng,      setLng]      = useState(existing ? String(existing.longitude) : '')
+  const [coords,   setCoords]   = useState(existing ? `${existing.latitude}, ${existing.longitude}` : '')
+
+  const parsedCoords = (() => {
+    const parts = coords.split(',').map(s => s.trim())
+    if (parts.length < 2) return null
+    const lat = parseFloat(parts[0])
+    const lng = parseFloat(parts[1])
+    if (isNaN(lat) || isNaN(lng)) return null
+    return { lat, lng }
+  })()
   const [date,     setDate]     = useState(existing?.commencement_date ?? '')
   const [category, setCategory] = useState<'Planned' | 'Operational' | 'SSNIT Branch' | ''>(existing?.category ?? '')
 
@@ -366,10 +374,10 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const latitude  = parseFloat(lat)
-    const longitude = parseFloat(lng)
-    if (isNaN(latitude)  || latitude  < -90  || latitude  > 90)  { toast.error('Latitude must be between -90 and 90');    return }
-    if (isNaN(longitude) || longitude < -180 || longitude > 180) { toast.error('Longitude must be between -180 and 180'); return }
+    if (!parsedCoords) { toast.error('Enter coordinates as "latitude, longitude"'); return }
+    const { lat: latitude, lng: longitude } = parsedCoords
+    if (latitude  < -90  || latitude  > 90)  { toast.error('Latitude must be between -90 and 90');    return }
+    if (longitude < -180 || longitude > 180) { toast.error('Longitude must be between -180 and 180'); return }
     const payload = {
       name: name.trim(),
       ssnit_branch: branch.trim() || null,
@@ -464,33 +472,23 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
             <label className="text-xs font-medium text-zinc-700">
               GPS Coordinates <span className="text-red-400">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <span className="text-[11px] text-zinc-500">Latitude</span>
-                <Input
-                  type="number"
-                  step="any"
-                  value={lat}
-                  onChange={e => setLat(e.target.value)}
-                  placeholder="e.g. 5.6037"
-                  required
-                  className="h-9 text-sm"
-                />
+            <Input
+              type="text"
+              value={coords}
+              onChange={e => setCoords(e.target.value)}
+              placeholder="e.g. 5.6037, -0.1870"
+              className="h-9 text-sm"
+            />
+            {parsedCoords ? (
+              <div className="flex gap-4 text-[11px] text-zinc-500">
+                <span>Lat: <span className="font-semibold text-zinc-700">{parsedCoords.lat}</span></span>
+                <span>Lng: <span className="font-semibold text-zinc-700">{parsedCoords.lng}</span></span>
               </div>
-              <div className="space-y-1">
-                <span className="text-[11px] text-zinc-500">Longitude</span>
-                <Input
-                  type="number"
-                  step="any"
-                  value={lng}
-                  onChange={e => setLng(e.target.value)}
-                  placeholder="e.g. -0.1870"
-                  required
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-400">Ghana: 4.5°–11.2° N, 3.3° W–1.2° E</p>
+            ) : coords.trim() ? (
+              <p className="text-[11px] text-red-400">Enter as latitude, longitude</p>
+            ) : (
+              <p className="text-[11px] text-zinc-400">Paste or type as latitude, longitude</p>
+            )}
           </div>
 
           <div className="flex gap-2 pt-1">
