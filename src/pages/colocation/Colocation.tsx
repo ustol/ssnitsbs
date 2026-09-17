@@ -642,7 +642,13 @@ async function renderGhanaMapCanvas(
     if (regions) drawPolygons(extractPolygonRings(regions), '#eee8dc', '#8fa3b0')
   }
 
-  // Pins
+  // Pins — rendered at 55 % of the on-screen size for a cleaner PDF
+  const ICON_SCALE = 0.55
+  const iconW  = PIN_ICON_SIZE.width   * RES * ICON_SCALE
+  const iconH  = PIN_ICON_SIZE.height  * RES * ICON_SCALE
+  const ancX   = PIN_ICON_SIZE.anchorX * RES * ICON_SCALE
+  const ancY   = PIN_ICON_SIZE.anchorY * RES * ICON_SCALE
+
   const pinImgCache: Record<string, HTMLImageElement> = {}
   const getPinImg = async (color: string) => {
     if (!pinImgCache[color]) {
@@ -653,21 +659,23 @@ async function renderGhanaMapCanvas(
   for (const loc of validLocations) {
     const { x, y } = project(Number(loc.latitude), Number(loc.longitude))
     const img = await getPinImg(pinColor(loc))
-    ctx.drawImage(img, x - PIN_ICON_SIZE.anchorX * RES, y - PIN_ICON_SIZE.anchorY * RES, PIN_ICON_SIZE.width * RES, PIN_ICON_SIZE.height * RES)
+    ctx.drawImage(img, x - ancX, y - ancY, iconW, iconH)
   }
 
   // Labels (when enabled)
   if (showLabels && validLocations.length) {
     ctx.save()
-    ctx.font = `600 ${8 * RES}px Inter, sans-serif`
+    const fontSize = Math.round(5.5 * RES)
+    ctx.font = `600 ${fontSize}px Inter, sans-serif`
     ctx.textBaseline = 'middle'
     for (const loc of validLocations) {
       const { x, y } = project(Number(loc.latitude), Number(loc.longitude))
-      const lx = x + (PIN_ICON_SIZE.anchorX + 3) * RES
-      const ly = y - PIN_ICON_SIZE.anchorY * RES * 0.55
+      const lx = x + (PIN_ICON_SIZE.width - PIN_ICON_SIZE.anchorX) * RES * ICON_SCALE + 2 * RES
+      const ly = y - ancY * 0.5
       const tw = ctx.measureText(loc.name).width
+      const pad = 2 * RES
       ctx.fillStyle = 'rgba(255,255,255,0.92)'
-      ctx.fillRect(lx - 2 * RES, ly - 5 * RES, tw + 4 * RES, 10 * RES)
+      ctx.fillRect(lx - pad, ly - fontSize * 0.6, tw + pad * 2, fontSize * 1.2)
       ctx.fillStyle = '#18181b'
       ctx.fillText(loc.name, lx, ly)
     }
@@ -710,19 +718,14 @@ async function exportColocationPdf(locations: ColocationLocation[], map: any, op
 
   autoTable(doc, {
     startY: 31,
-    head: [['Location Name', 'SSNIT Branch', 'Category', 'Commencement Date']],
-    body: exportLocations.map(loc => [
-      loc.name,
-      loc.ssnit_branch || '—',
-      loc.category     || '—',
-      formatCommencementDate(loc.commencement_date),
-    ]),
-    styles: { fontSize: 9.5, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
-    headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+    head: [['Location Name']],
+    body: exportLocations.map(loc => [loc.name]),
+    styles: { fontSize: 10, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 10.5 },
     alternateRowStyles: { fillColor: [250, 250, 250] },
     tableLineColor: [228, 228, 231],
     tableLineWidth: 0.1,
-    columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 55 }, 2: { cellWidth: 30 }, 3: { cellWidth: 40 } },
+    columnStyles: { 0: { cellWidth: 'auto' } },
   })
 
   // ── Page 2: map ────────────────────────────────────────────────────────────
