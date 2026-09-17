@@ -683,10 +683,8 @@ async function exportColocationPdf(locations: ColocationLocation[], map: any, op
   const { showLabels, focusedFeature } = opts
   const isRegionMode = !!focusedFeature
 
-  // In region mode export only locations inside the focused region
-  const exportLocations = isRegionMode
-    ? locations.filter(loc => featureContainsPoint(focusedFeature, Number(loc.latitude), Number(loc.longitude)))
-    : locations
+  // Caller pre-filters to exactly the visible set; use as-is
+  const exportLocations = locations
 
   // Try common GeoJSON property names for the region label
   const regionName: string = isRegionMode
@@ -808,9 +806,21 @@ export function Colocation() {
   async function handleExport() {
     setIsExporting(true)
     try {
-      await exportColocationPdf(locations, mapHandleRef.current?.getMap(), {
-        showLabels: showLabels,
-        focusedFeature: mapHandleRef.current?.getFocusedRegionFeature() ?? null,
+      const focusedFeature = mapHandleRef.current?.getFocusedRegionFeature() ?? null
+
+      // Mirror exactly what is visible on the map right now
+      const visibleLocations = filteredLocations.filter(loc => {
+        const cat = loc.category
+        if (cat === 'Operational'  && !showOperational)  return false
+        if (cat === 'SSNIT Branch' && !showSsnitBranch)  return false
+        if ((cat === 'Planned' || !cat) && !showPlanned) return false
+        if (focusedFeature && !featureContainsPoint(focusedFeature, Number(loc.latitude), Number(loc.longitude))) return false
+        return true
+      })
+
+      await exportColocationPdf(visibleLocations, mapHandleRef.current?.getMap(), {
+        showLabels,
+        focusedFeature,
       })
     } catch (err) {
       toast.error((err as Error).message || 'Failed to export PDF')
