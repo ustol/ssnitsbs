@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { isValidPhone } from '@/lib/utils'
+import { writeAudit } from '@/hooks/useAuditLog'
 import type { ExternalStakeholder } from '@/types/database'
 
 const schema = z.object({
@@ -59,8 +60,10 @@ export function ExternalStakeholders() {
   const onSubmit = async (values: FormValues) => {
     if (editTarget) {
       await updateMutation.mutateAsync({ id: editTarget.id, values })
+      writeAudit({ action: 'updated', entity_type: 'external_stakeholder', entity_id: editTarget.id, entity_name: values.name, changes: null })
     } else {
-      await createMutation.mutateAsync(values)
+      const result = await createMutation.mutateAsync(values) as { id: string; name: string } | null
+      writeAudit({ action: 'created', entity_type: 'external_stakeholder', entity_id: result?.id ?? null, entity_name: result?.name ?? null, changes: null })
     }
     setFormOpen(false)
   }
@@ -185,7 +188,7 @@ export function ExternalStakeholders() {
       <ConfirmDelete
         open={!!deleteId}
         onOpenChange={open => !open && setDeleteId(null)}
-        onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId, { onSuccess: () => setDeleteId(null) }) }}
+        onConfirm={() => { if (deleteId) { const item = data.find(r => r.id === deleteId); deleteMutation.mutate(deleteId, { onSuccess: () => { writeAudit({ action: 'deleted', entity_type: 'external_stakeholder', entity_id: deleteId, entity_name: item?.name ?? null, changes: null }); setDeleteId(null) } }) } }}
         loading={deleteMutation.isPending}
       />
     </div>

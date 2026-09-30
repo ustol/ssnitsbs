@@ -6,6 +6,7 @@ import { usePartnerships, useUpdatePartnership } from '@/hooks/usePartnerships'
 import { useExternalMeetings, useInternalMeetings } from '@/hooks/useMeetings'
 import { useStatusLookup } from '@/hooks/useSettings'
 import { useStatusHistory, useCreateStatusHistory } from '@/hooks/useStatusHistory'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -221,6 +222,7 @@ export function StatusTracker() {
   async function savePartnership(r: any, newStatusId: string | null, date: string | null) {
     const oldStatusId = r.status_id
     await updatePartnership.mutateAsync({ id: r.id, values: { status_id: newStatusId, status_date: date } })
+    writeAudit({ action: 'updated', entity_type: 'partnership', entity_id: r.id, entity_name: r.title, changes: null })
     if (newStatusId !== oldStatusId) {
       createHistory.mutateAsync({
         entity_type: 'partnership',

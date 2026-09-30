@@ -203,7 +203,7 @@ export function InternalMeetingView() {
                     {a.file_type === 'image' && (
                       <button
                         type="button"
-                        onClick={() => setDisplayPicture.mutate({ id: a.id, meetingType: 'internal', meetingId: id! })}
+                        onClick={() => setDisplayPicture.mutate({ id: a.id, meetingType: 'internal', meetingId: id! }, { onSuccess: () => writeAudit({ action: 'set_display_picture', entity_type: 'internal_meeting', entity_id: id!, entity_name: m.title as string, changes: null }) })}
                         title={a.is_display_picture ? 'Cover photo' : 'Set as cover photo'}
                         className={cn(
                           'p-1.5 rounded-md transition-colors',
@@ -225,7 +225,7 @@ export function InternalMeetingView() {
                     </a>
                     <button
                       type="button"
-                      onClick={() => deleteAttachment.mutate({ id: a.id, filePath: a.file_path, meetingType: 'internal', meetingId: id! })}
+                      onClick={() => deleteAttachment.mutate({ id: a.id, filePath: a.file_path, meetingType: 'internal', meetingId: id! }, { onSuccess: () => writeAudit({ action: 'deleted', entity_type: 'meeting_attachment', entity_id: a.id, entity_name: a.file_name, changes: null }) })}
                       className="p-1.5 rounded-md text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       title="Remove"
                     >

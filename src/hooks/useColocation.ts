@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { writeAudit } from '@/hooks/useAuditLog'
 
 export interface ColocationLocation {
   id: string
@@ -40,6 +41,7 @@ export function useAddLocation() {
         .from('colocation_locations')
         .insert({ ...payload, created_by: user?.id ?? null })
       if (error) throw error
+      writeAudit({ action: 'created', entity_type: 'colocation_location', entity_id: null, entity_name: payload.name, changes: null })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['colocation-locations'] })
@@ -61,6 +63,7 @@ export function useUpdateLocation() {
         .update(fields)
         .eq('id', id)
       if (error) throw error
+      writeAudit({ action: 'updated', entity_type: 'colocation_location', entity_id: payload.id, entity_name: payload.name, changes: null })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['colocation-locations'] })
@@ -77,6 +80,7 @@ export function useDeleteLocation() {
         .delete()
         .eq('id', id)
       if (error) throw error
+      writeAudit({ action: 'deleted', entity_type: 'colocation_location', entity_id: id, entity_name: null, changes: null })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['colocation-locations'] })

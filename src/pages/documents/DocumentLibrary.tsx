@@ -3,6 +3,7 @@ import { Upload, CloudUpload, FileText, File, FolderOpen, X, ChevronDown, Chevro
 import { useLibraryData, type LibraryItem } from '@/hooks/useLibraryData'
 import { usePartnerships } from '@/hooks/usePartnerships'
 import { useUploadDocument, useDeleteDocument } from '@/hooks/useDocuments'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
 import { Button } from '@/components/ui/button'
@@ -75,13 +76,14 @@ export function DocumentLibrary() {
 
   const handleUpload = async () => {
     if (!selectedFile) return
-    await uploadMutation.mutateAsync({
+    const result = await uploadMutation.mutateAsync({
       file: selectedFile,
       meta: {
         title: uploadMeta.title || selectedFile.name,
         partnership_id: uploadMeta.partnership_id || null,
       },
-    })
+    }) as { id?: string } | null
+    writeAudit({ action: 'uploaded_file', entity_type: 'document', entity_id: result?.id ?? null, entity_name: uploadMeta.title || selectedFile.name, changes: null })
     setUploadOpen(false)
     setSelectedFile(null)
     setUploadMeta({ title: '', partnership_id: '' })
@@ -378,7 +380,7 @@ export function DocumentLibrary() {
           if (deleteTarget) {
             deleteMutation.mutate(
               { id: deleteTarget.id, filePath: deleteTarget.file_path },
-              { onSuccess: () => setDeleteTarget(null) },
+              { onSuccess: () => { writeAudit({ action: 'deleted', entity_type: 'document', entity_id: deleteTarget.id, entity_name: deleteTarget.title, changes: null }); setDeleteTarget(null) } },
             )
           }
         }}

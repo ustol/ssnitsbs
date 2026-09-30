@@ -88,6 +88,7 @@ export function ExternalMeetingForm() {
         if (pendingFiles.length > 0) {
           try {
             await uploadPendingFiles(pendingFiles, 'external', id!)
+            writeAudit({ action: 'uploaded_file', entity_type: 'meeting_attachment', entity_id: id!, entity_name: `${pendingFiles.length} file(s)`, changes: null })
           } catch (uploadErr) {
             toast.error(`Files could not be uploaded: ${(uploadErr as Error).message}`)
           }
@@ -99,6 +100,7 @@ export function ExternalMeetingForm() {
         if (pendingFiles.length > 0) {
           try {
             await uploadPendingFiles(pendingFiles, 'external', created.id)
+            writeAudit({ action: 'uploaded_file', entity_type: 'meeting_attachment', entity_id: created.id, entity_name: `${pendingFiles.length} file(s)`, changes: null })
           } catch (uploadErr) {
             toast.error(`Files could not be uploaded: ${(uploadErr as Error).message}`)
           }

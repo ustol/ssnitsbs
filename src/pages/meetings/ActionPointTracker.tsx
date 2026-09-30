@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { writeAudit } from '@/hooks/useAuditLog'
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: 'pending' | 'done' | 'failed' }) {
@@ -168,8 +169,9 @@ export function ActionPointTracker() {
   }
 
   function handleDelete(id: string) {
+    const item = items.find(i => i.id === id)
     remove(id, {
-      onSuccess: () => toast.success('Action point removed'),
+      onSuccess: () => { writeAudit({ action: 'deleted', entity_type: 'action_point', entity_id: id, entity_name: item?.content ?? null, changes: null }); toast.success('Action point removed') },
       onError:   () => toast.error('Failed to remove'),
     })
   }

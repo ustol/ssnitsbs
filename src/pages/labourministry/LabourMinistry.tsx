@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/utils'
+import { writeAudit } from '@/hooks/useAuditLog'
 
 const nonNegativeNumberString = (label: string) =>
   z.string().optional().refine(
@@ -212,8 +213,10 @@ export function LabourMinistry() {
     try {
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, payload })
+        writeAudit({ action: 'updated', entity_type: 'compliance_activity', entity_id: editing.id, entity_name: payload.establishment_name, changes: null })
       } else {
-        await createMutation.mutateAsync(payload)
+        const result = await createMutation.mutateAsync(payload) as { id?: string } | null
+        writeAudit({ action: 'created', entity_type: 'compliance_activity', entity_id: result?.id ?? null, entity_name: payload.establishment_name, changes: null })
       }
       closeDialog()
     } catch {
@@ -319,7 +322,7 @@ export function LabourMinistry() {
         onConfirm={() => {
           if (!deleteTarget) return
           deleteMutation.mutate(deleteTarget.id, {
-            onSuccess: () => setDeleteTarget(null),
+            onSuccess: () => { writeAudit({ action: 'deleted', entity_type: 'compliance_activity', entity_id: deleteTarget.id, entity_name: deleteTarget.establishment_name, changes: null }); setDeleteTarget(null) },
           })
         }}
         loading={deleteMutation.isPending}

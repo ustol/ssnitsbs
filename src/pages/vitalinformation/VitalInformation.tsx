@@ -12,6 +12,7 @@ import {
 } from '@/hooks/useVitalInformation'
 import { usePartnerships } from '@/hooks/usePartnerships'
 import { useExternalMeetings, useInternalMeetings } from '@/hooks/useMeetings'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ConfirmDelete } from '@/components/shared/ConfirmDelete'
 import { Badge } from '@/components/ui/badge'
@@ -268,8 +269,10 @@ export function VitalInformation() {
     try {
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, payload })
+        writeAudit({ action: 'updated', entity_type: 'vital_information', entity_id: editing.id, entity_name: payload.subject, changes: null })
       } else {
-        await createMutation.mutateAsync(payload)
+        const result = await createMutation.mutateAsync(payload) as { id?: string } | null
+        writeAudit({ action: 'created', entity_type: 'vital_information', entity_id: result?.id ?? null, entity_name: payload.subject, changes: null })
       }
       closeDialog()
     } catch {
@@ -387,7 +390,7 @@ export function VitalInformation() {
         onConfirm={() => {
           if (!deleteTarget) return
           deleteMutation.mutate(deleteTarget.id, {
-            onSuccess: () => setDeleteTarget(null),
+            onSuccess: () => { writeAudit({ action: 'deleted', entity_type: 'vital_information', entity_id: deleteTarget.id, entity_name: deleteTarget.subject, changes: null }); setDeleteTarget(null) },
           })
         }}
         loading={deleteMutation.isPending}

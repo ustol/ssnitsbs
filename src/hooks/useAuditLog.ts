@@ -7,12 +7,15 @@ import type { AuditLog } from '@/types/database'
 export interface AuditPayload {
   action:
     | 'created' | 'updated' | 'deleted' | 'uploaded_file' | 'set_display_picture'
-    | 'login' | 'logout'
+    | 'login' | 'logout' | 'exported'
     | 'marked_done' | 'marked_pending' | 'marked_failed' | 'updated_notes'
   entity_type:
     | 'external_meeting' | 'internal_meeting' | 'partnership' | 'document'
     | 'auth'
     | 'action_point'
+    | 'external_stakeholder' | 'internal_stakeholder' | 'user' | 'setting'
+    | 'status_lookup' | 'vital_information' | 'compliance_activity'
+    | 'big_push_activity' | 'colocation_location' | 'meeting_attachment'
   entity_id: string | null
   entity_name: string | null
   changes?: Record<string, { from: unknown; to: unknown }> | null

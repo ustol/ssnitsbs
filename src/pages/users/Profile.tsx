@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useUpdateProfile } from '@/hooks/useUsers'
 import { supabase } from '@/lib/supabase'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ export function Profile() {
   const onSaveProfile = async (values: FormValues) => {
     if (!user) return
     await updateMutation.mutateAsync({ id: user.id, values })
+    writeAudit({ action: 'updated', entity_type: 'user', entity_id: null, entity_name: 'Profile', changes: null })
   }
 
   const onChangePassword = async (values: PasswordValues) => {
@@ -53,6 +55,7 @@ export function Profile() {
       toast.error(error.message)
     } else {
       pwForm.reset()
+      writeAudit({ action: 'updated', entity_type: 'user', entity_id: null, entity_name: 'Password', changes: null })
       toast.success('Password updated successfully')
     }
   }

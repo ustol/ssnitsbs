@@ -86,6 +86,7 @@ export function InternalMeetingForm() {
         if (pendingFiles.length > 0) {
           try {
             await uploadPendingFiles(pendingFiles, 'internal', id!)
+            writeAudit({ action: 'uploaded_file', entity_type: 'meeting_attachment', entity_id: id!, entity_name: `${pendingFiles.length} file(s)`, changes: null })
           } catch (uploadErr) {
             toast.error(`Files could not be uploaded: ${(uploadErr as Error).message}`)
           }
@@ -97,6 +98,7 @@ export function InternalMeetingForm() {
         if (pendingFiles.length > 0) {
           try {
             await uploadPendingFiles(pendingFiles, 'internal', created.id)
+            writeAudit({ action: 'uploaded_file', entity_type: 'meeting_attachment', entity_id: created.id, entity_name: `${pendingFiles.length} file(s)`, changes: null })
           } catch (uploadErr) {
             toast.error(`Files could not be uploaded: ${(uploadErr as Error).message}`)
           }

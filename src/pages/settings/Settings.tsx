@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSettings, useUpdateSetting, useStatusLookup, useCreateStatus, useUpdateStatus, useDeleteStatus } from '@/hooks/useSettings'
+import { writeAudit } from '@/hooks/useAuditLog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -22,12 +23,14 @@ function StatusRow({ status, onDeleted }: { status: StatusLookup; onDeleted: () 
   async function handleSave() {
     if (!name.trim()) return
     await updateStatus.mutateAsync({ id: status.id, values: { name: name.trim(), color } })
+    writeAudit({ action: 'updated', entity_type: 'status_lookup', entity_id: status.id, entity_name: name.trim(), changes: null })
     setEditing(false)
   }
 
   async function handleDelete() {
     if (!window.confirm(`Delete status "${status.name}"? This won't affect existing records.`)) return
     await deleteStatus.mutateAsync(status.id)
+    writeAudit({ action: 'deleted', entity_type: 'status_lookup', entity_id: status.id, entity_name: status.name, changes: null })
     onDeleted()
   }
 
@@ -90,6 +93,7 @@ function AddStatusForm({ nextSortOrder, onDone }: { nextSortOrder: number; onDon
   async function handleAdd() {
     if (!name.trim()) return
     await createStatus.mutateAsync({ name: name.trim(), color, sort_order: nextSortOrder })
+    writeAudit({ action: 'created', entity_type: 'status_lookup', entity_id: null, entity_name: name.trim(), changes: null })
     setName('')
     setColor('#6366f1')
     onDone()
@@ -145,6 +149,8 @@ export function Settings() {
       updateMutation.mutateAsync({ key: 'best_case_pct', value: bestCase }),
       updateMutation.mutateAsync({ key: 'worst_case_pct', value: worstCase }),
     ])
+    writeAudit({ action: 'updated', entity_type: 'setting', entity_id: null, entity_name: 'best_case_pct', changes: null })
+    writeAudit({ action: 'updated', entity_type: 'setting', entity_id: null, entity_name: 'worst_case_pct', changes: null })
   }
 
   const nextSortOrder = (statuses as StatusLookup[]).reduce((max, s) => Math.max(max, s.sort_order ?? 0), 0) + 10

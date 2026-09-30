@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { writeAudit } from '@/hooks/useAuditLog'
 
 // ─── Activity meta (display only) ─────────────────────────────────────────────
 
@@ -318,6 +319,7 @@ export function DataWarehouse() {
   const { data: projects = [], isLoading: loadingP, error, refetch, isFetching } = useDataWarehouse()
   const { data: activities = [], isLoading: loadingA } = useProjectActivities()
   const { mutate: deleteActivity } = useDeleteActivity()
+  const handleDeleteActivity = (id: string) => { deleteActivity(id, { onSuccess: () => writeAudit({ action: 'deleted', entity_type: 'big_push_activity', entity_id: id, entity_name: null, changes: null }) }) }
 
   const [search, setSearch] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
@@ -561,15 +563,15 @@ export function DataWarehouse() {
                       </td>
                       {/* Registrations */}
                       <td className="px-4 py-3">
-                        <ActivityCell activityType="registration" projectId={p.id} summaries={activitySummaries} onDelete={deleteActivity} />
+                        <ActivityCell activityType="registration" projectId={p.id} summaries={activitySummaries} onDelete={handleDeleteActivity} />
                       </td>
                       {/* Validations */}
                       <td className="px-4 py-3">
-                        <ActivityCell activityType="validation" projectId={p.id} summaries={activitySummaries} onDelete={deleteActivity} />
+                        <ActivityCell activityType="validation" projectId={p.id} summaries={activitySummaries} onDelete={handleDeleteActivity} />
                       </td>
                       {/* Payments */}
                       <td className="px-4 py-3">
-                        <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} onDelete={deleteActivity} />
+                        <ActivityCell activityType="payment" projectId={p.id} summaries={activitySummaries} onDelete={handleDeleteActivity} />
                       </td>
                       {/* Inspection */}
                       <td className="px-4 py-3">

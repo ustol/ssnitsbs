@@ -16,6 +16,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getInitials, formatDate, isValidPhone } from '@/lib/utils'
+import { writeAudit } from '@/hooks/useAuditLog'
 import type { Profile } from '@/types/database'
 
 const editSchema = z.object({
@@ -67,11 +68,13 @@ export function UserList() {
   const onEdit = async (values: EditValues) => {
     if (!editTarget) return
     await updateMutation.mutateAsync({ id: editTarget.id, values })
+    writeAudit({ action: 'updated', entity_type: 'user', entity_id: editTarget.id, entity_name: values.full_name, changes: null })
     setEditTarget(null)
   }
 
   const onCreate = async (values: CreateValues) => {
-    await createMutation.mutateAsync(values)
+    const result = await createMutation.mutateAsync(values) as { id?: string; full_name?: string; email?: string } | null
+    writeAudit({ action: 'created', entity_type: 'user', entity_id: result?.id ?? null, entity_name: result?.full_name ?? result?.email ?? null, changes: null })
     setCreateOpen(false)
   }
 
@@ -207,7 +210,7 @@ export function UserList() {
         onOpenChange={open => !open && setDeleteTarget(null)}
         onConfirm={() => {
           if (deleteTarget) {
-            deleteMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+            deleteMutation.mutate(deleteTarget.id, { onSuccess: () => { writeAudit({ action: 'deleted', entity_type: 'user', entity_id: deleteTarget.id, entity_name: deleteTarget.full_name ?? deleteTarget.email ?? null, changes: null }); setDeleteTarget(null) } })
           }
         }}
         loading={deleteMutation.isPending}
