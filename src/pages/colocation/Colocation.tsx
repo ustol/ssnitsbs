@@ -506,6 +506,76 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   )
 }
 
+// ─── Export fields dialog ─────────────────────────────────────────────────────
+
+interface ExportFieldsModalProps {
+  onClose: () => void
+  onExport: (fields: ExportFieldKey[]) => void
+}
+
+function ExportFieldsModal({ onClose, onExport }: ExportFieldsModalProps) {
+  const [checked, setChecked] = useState<Record<ExportFieldKey, boolean>>({
+    name: true, ssnit_branch: true, category: true, coordinates: true, commencement_date: true,
+  })
+
+  function toggle(key: ExportFieldKey) {
+    setChecked(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function handleExport() {
+    const fields = EXPORT_FIELD_DEFS.map(f => f.key).filter(k => checked[k])
+    if (!fields.length) { return }
+    onExport(fields)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-xl border shadow-xl overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b">
+          <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+            <Download size={15} className="text-brand" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-zinc-900">Export to PDF</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Choose fields to include in the table</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-2.5">
+          {EXPORT_FIELD_DEFS.map(f => (
+            <label key={f.key} className="flex items-center gap-3 cursor-pointer select-none group">
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked[f.key] ? 'bg-brand border-brand' : 'border-zinc-300 group-hover:border-zinc-400'}`}
+                onClick={() => toggle(f.key)}>
+                {checked[f.key] && (
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                    <path d="M1 4l2.5 2.5L9 1" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </span>
+              <span className="text-sm text-zinc-700">{f.label}</span>
+            </label>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t bg-zinc-50">
+          <Button variant="outline" className="h-8 text-xs" onClick={onClose}>Cancel</Button>
+          <Button
+            className="h-8 text-xs gap-1.5"
+            onClick={handleExport}
+            disabled={!Object.values(checked).some(Boolean)}
+          >
+            <Download size={13} /> Export PDF
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Share ────────────────────────────────────────────────────────────────────
 
 function googleMapsDirectionsUrl(loc: ColocationLocation): string {
@@ -685,10 +755,19 @@ async function renderGhanaMapCanvas(
   return canvas
 }
 
-interface ExportOpts { showLabels: boolean; focusedFeature: any | null }
+const EXPORT_FIELD_DEFS = [
+  { key: 'name',               label: 'Location Name' },
+  { key: 'ssnit_branch',       label: 'SSNIT Branch' },
+  { key: 'category',           label: 'Category' },
+  { key: 'coordinates',        label: 'Coordinates' },
+  { key: 'commencement_date',  label: 'Commencement Date' },
+] as const
+type ExportFieldKey = typeof EXPORT_FIELD_DEFS[number]['key']
+
+interface ExportOpts { showLabels: boolean; focusedFeature: any | null; fields: ExportFieldKey[] }
 
 async function exportColocationPdf(locations: ColocationLocation[], map: any, opts: ExportOpts) {
-  const { showLabels, focusedFeature } = opts
+  const { showLabels, focusedFeature, fields } = opts
   const isRegionMode = !!focusedFeature
 
   // Caller pre-filters to exactly the visible set; use as-is
@@ -716,16 +795,26 @@ async function exportColocationPdf(locations: ColocationLocation[], map: any, op
     14, 25,
   )
 
+  const activeFields = EXPORT_FIELD_DEFS.filter(f => fields.includes(f.key))
+  const head = [activeFields.map(f => f.label)]
+  const body = exportLocations.map(loc => activeFields.map(f => {
+    if (f.key === 'name')              return loc.name
+    if (f.key === 'ssnit_branch')      return loc.ssnit_branch || '—'
+    if (f.key === 'category')          return loc.category || '—'
+    if (f.key === 'coordinates')       return `${loc.latitude}, ${loc.longitude}`
+    if (f.key === 'commencement_date') return formatCommencementDate(loc.commencement_date)
+    return '—'
+  }))
+
   autoTable(doc, {
     startY: 31,
-    head: [['Location Name']],
-    body: exportLocations.map(loc => [loc.name]),
-    styles: { fontSize: 10, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
-    headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 10.5 },
+    head,
+    body,
+    styles: { fontSize: 9.5, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [232, 98, 26], textColor: 255, fontStyle: 'bold', fontSize: 10 },
     alternateRowStyles: { fillColor: [250, 250, 250] },
     tableLineColor: [228, 228, 231],
     tableLineWidth: 0.1,
-    columnStyles: { 0: { cellWidth: 'auto' } },
   })
 
   // ── Page 2: map ────────────────────────────────────────────────────────────
@@ -762,9 +851,10 @@ export function Colocation() {
   const { mutateAsync: deleteLocation } = useDeleteLocation()
   const mapHandleRef = useRef<GhanaMapHandle>(null)
 
-  const [addOpen,     setAddOpen]     = useState(false)
-  const [editTarget,  setEditTarget]  = useState<ColocationLocation | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
+  const [addOpen,       setAddOpen]       = useState(false)
+  const [editTarget,    setEditTarget]    = useState<ColocationLocation | null>(null)
+  const [exportOpen,    setExportOpen]    = useState(false)
+  const [isExporting,   setIsExporting]   = useState(false)
   const [showLabels,       setShowLabels]       = useState(false)
   const [showOperational,  setShowOperational]  = useState(true)
   const [showPlanned,      setShowPlanned]      = useState(true)
@@ -806,12 +896,16 @@ export function Colocation() {
     catch (err) { toast.error((err as Error).message) }
   }
 
-  async function handleExport() {
+  function handleExport() {
+    setExportOpen(true)
+  }
+
+  async function runExport(fields: ExportFieldKey[]) {
+    setExportOpen(false)
     setIsExporting(true)
     try {
       const focusedFeature = mapHandleRef.current?.getFocusedRegionFeature() ?? null
 
-      // Mirror exactly what is visible on the map right now
       const visibleLocations = filteredLocations.filter(loc => {
         const cat = loc.category
         if (cat === 'Operational'  && !showOperational)  return false
@@ -824,6 +918,7 @@ export function Colocation() {
       await exportColocationPdf(visibleLocations, mapHandleRef.current?.getMap(), {
         showLabels,
         focusedFeature,
+        fields,
       })
     } catch (err) {
       toast.error((err as Error).message || 'Failed to export PDF')
@@ -1074,8 +1169,9 @@ export function Colocation() {
       </div>
 
       {/* Modals */}
-      {addOpen    && <LocationModal key="add"           onClose={() => setAddOpen(false)}    />}
-      {editTarget && <LocationModal key={editTarget.id} onClose={() => setEditTarget(null)} existing={editTarget} />}
+      {addOpen     && <LocationModal key="add"           onClose={() => setAddOpen(false)}    />}
+      {editTarget  && <LocationModal key={editTarget.id} onClose={() => setEditTarget(null)} existing={editTarget} />}
+      {exportOpen  && <ExportFieldsModal onClose={() => setExportOpen(false)} onExport={runExport} />}
     </div>
   )
 }
