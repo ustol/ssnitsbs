@@ -75,6 +75,10 @@
   border-radius: 4px;
 }
 .leaflet-tooltip.colocation-label::before { display: none; }
-.leaflet-tooltip.colocation-label-operational { background: #ea580c; }
-.leaflet-tooltip.colocation-label-planned     { background: #374151; }
-.leaflet-tooltip.colocation-label-ssnit       { background: #3b82f6; }
+.leaflet-tooltip.colocation-label-gcb      { background: #eab308; color: #18181b; }
+.leaflet-tooltip.colocation-label-cbg      { background: #18181b; }
+.leaflet-tooltip.colocation-label-fidelity { background: #ea580c; }
+.leaflet-tooltip.colocation-label-ecobank  { background: #2563eb; }
+.leaflet-tooltip.colocation-label-rural    { background: #16a34a; }
+.leaflet-tooltip.colocation-label-agency   { background: #dc2626; }
+.leaflet-tooltip.colocation-label-default  { background: #6b7280; }

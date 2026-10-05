@@ -2,13 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { writeAudit } from '@/hooks/useAuditLog'
 
+export type BankName = 'GCB' | 'CBG' | 'Fidelity' | 'Ecobank' | 'Rural/Community Bank' | 'Agency'
+
 export interface ColocationLocation {
   id: string
   name: string
   latitude: number
   longitude: number
   ssnit_branch: string | null
-  bank: string | null
+  bank: BankName | null
   commencement_date: string | null
   category: 'Planned' | 'Operational' | 'SSNIT Branch' | null
   created_at: string
@@ -33,7 +35,7 @@ export function useAddLocation() {
   return useMutation({
     mutationFn: async (payload: {
       name: string; latitude: number; longitude: number
-      ssnit_branch?: string | null; bank?: string | null; commencement_date?: string | null
+      ssnit_branch?: string | null; bank?: BankName | null; commencement_date?: string | null
       category?: 'Planned' | 'Operational' | 'SSNIT Branch' | null
     }) => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -54,7 +56,7 @@ export function useUpdateLocation() {
   return useMutation({
     mutationFn: async (payload: {
       id: string; name: string; latitude: number; longitude: number
-      ssnit_branch?: string | null; bank?: string | null; commencement_date?: string | null
+      ssnit_branch?: string | null; bank?: BankName | null; commencement_date?: string | null
       category?: 'Planned' | 'Operational' | 'SSNIT Branch' | null
     }) => {
       const { id, ...fields } = payload

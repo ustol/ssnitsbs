@@ -24,9 +24,24 @@ export interface GhanaMapHandle {
 // Icon size [28,36], anchored at [14,36] (bottom-center tip = the geographic point).
 // Shared between the live Leaflet divIcon and the PDF export's canvas-drawn pins.
 const PIN_ICON_SIZE = { width: 20, height: 25, anchorX: 10, anchorY: 25 }
-const PIN_COLOR_OPERATIONAL  = '#f4a234'
-const PIN_COLOR_SSNIT_BRANCH = '#3b82f6'
-const PIN_COLOR_DEFAULT      = '#4b5563'
+const BANK_COLORS: Record<string, string> = {
+  'GCB':                  '#eab308',
+  'CBG':                  '#18181b',
+  'Fidelity':             '#ea580c',
+  'Ecobank':              '#2563eb',
+  'Rural/Community Bank': '#16a34a',
+  'Agency':               '#dc2626',
+}
+const BANK_COLOR_DEFAULT = '#6b7280'
+
+const BANK_LABEL_CLASSES: Record<string, string> = {
+  'GCB':                  'colocation-label-gcb',
+  'CBG':                  'colocation-label-cbg',
+  'Fidelity':             'colocation-label-fidelity',
+  'Ecobank':              'colocation-label-ecobank',
+  'Rural/Community Bank': 'colocation-label-rural',
+  'Agency':               'colocation-label-agency',
+}
 
 function buildPinSvg(color: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="25" viewBox="0 0 28 36">
@@ -36,9 +51,7 @@ function buildPinSvg(color: string): string {
 }
 
 function pinColor(loc: ColocationLocation): string {
-  if (loc.category === 'Operational')  return PIN_COLOR_OPERATIONAL
-  if (loc.category === 'SSNIT Branch') return PIN_COLOR_SSNIT_BRANCH
-  return PIN_COLOR_DEFAULT
+  return (loc.bank && BANK_COLORS[loc.bank]) ?? BANK_COLOR_DEFAULT
 }
 
 // ─── Region helpers ───────────────────────────────────────────────────────────
@@ -284,9 +297,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, {
       const marker = L.marker([lat, lng], { icon: getIcon(pinColor(loc)) })
 
       if (showLabels) {
-        const labelCat = loc.category === 'Operational' ? 'colocation-label-operational'
-          : loc.category === 'SSNIT Branch'             ? 'colocation-label-ssnit'
-          :                                               'colocation-label-planned'
+        const labelCat = (loc.bank && BANK_LABEL_CLASSES[loc.bank]) ?? 'colocation-label-default'
         marker.bindTooltip(loc.name, {
           permanent: true,
           direction: 'right',
@@ -324,7 +335,7 @@ const GhanaMap = forwardRef<GhanaMapHandle, {
       const inner = m.getElement()?.firstElementChild as HTMLElement | null
       if (inner) {
         inner.style.transform = ''
-        inner.innerHTML = buildPinSvg(colorsRef.current[id] ?? PIN_COLOR_DEFAULT)
+        inner.innerHTML = buildPinSvg(colorsRef.current[id] ?? BANK_COLOR_DEFAULT)
       }
       if (!showLabels) m.closeTooltip()
     })
@@ -367,6 +378,7 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   })()
   const [date,     setDate]     = useState(existing?.commencement_date ?? '')
   const [category, setCategory] = useState<'Planned' | 'Operational' | 'SSNIT Branch' | ''>(existing?.category ?? '')
+  const [bank,     setBank]     = useState<string>(existing?.bank ?? '')
 
   const { mutateAsync: add,    isPending: isAdding   } = useAddLocation()
   const { mutateAsync: update, isPending: isUpdating } = useUpdateLocation()
@@ -381,6 +393,7 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
     const payload = {
       name: name.trim(),
       ssnit_branch: branch.trim() || null,
+      bank: bank || null,
       latitude,
       longitude,
       commencement_date: date || null,
@@ -453,6 +466,23 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
               <option value="Planned">Planned</option>
               <option value="Operational">Operational</option>
               <option value="SSNIT Branch">SSNIT Branch</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-700">Bank</label>
+            <select
+              value={bank}
+              onChange={e => setBank(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-zinc-900"
+            >
+              <option value="">— Select bank —</option>
+              <option value="GCB">GCB</option>
+              <option value="CBG">CBG</option>
+              <option value="Fidelity">Fidelity</option>
+              <option value="Ecobank">Ecobank</option>
+              <option value="Rural/Community Bank">Rural/Community Bank</option>
+              <option value="Agency">Agency</option>
             </select>
           </div>
 
