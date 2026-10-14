@@ -73,6 +73,26 @@ export function useUpdateLocation() {
   })
 }
 
+export function useBulkAddLocations() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (rows: Array<{
+      name: string; latitude: number; longitude: number
+      bank?: BankName | null; category?: 'Planned' | 'Operational' | 'SSNIT Branch' | null
+    }>) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase
+        .from('colocation_locations')
+        .insert(rows.map(r => ({ ...r, created_by: user?.id ?? null })))
+      if (error) throw error
+      writeAudit({ action: 'created', entity_type: 'colocation_location', entity_id: null, entity_name: `${rows.length} locations (bulk upload)`, changes: null })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['colocation-locations'] })
+    },
+  })
+}
+
 export function useDeleteLocation() {
   const qc = useQueryClient()
   return useMutation({

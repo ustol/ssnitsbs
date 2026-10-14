@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2, Search } from 'lucide-react'
+import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2, Search, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -7,7 +8,9 @@ import {
   useAddLocation,
   useUpdateLocation,
   useDeleteLocation,
+  useBulkAddLocations,
   type ColocationLocation,
+  type BankName,
 } from '@/hooks/useColocation'
 import { GHANA_BOUNDS } from '@/data/ghana-boundary'
 import { Button } from '@/components/ui/button'
@@ -536,6 +539,274 @@ function LocationModal({ onClose, existing }: LocationModalProps) {
   )
 }
 
+// ─── Excel Upload Modal ───────────────────────────────────────────────────────
+
+const VALID_CATEGORIES = new Set(['Planned', 'Operational', 'SSNIT Branch', ''])
+const VALID_BANKS      = new Set(['GCB', 'CBG', 'Fidelity', 'Ecobank', 'Rural/Community Bank', 'Agency', ''])
+
+interface UploadRow {
+  name: string
+  category: string
+  bank: string
+  coordinates: string
+  errors: string[]
+  latitude?: number
+  longitude?: number
+}
+
+function normaliseKey(k: string) { return k.toLowerCase().replace(/[^a-z]/g, '') }
+
+function parseUploadRows(raw: Record<string, unknown>[]): UploadRow[] {
+  return raw.map(r => {
+    // Case-insensitive column lookup
+    const get = (aliases: string[]) => {
+      for (const alias of aliases) {
+        for (const [k, v] of Object.entries(r)) {
+          if (normaliseKey(k) === normaliseKey(alias)) return String(v ?? '').trim()
+        }
+      }
+      return ''
+    }
+
+    const name        = get(['Name', 'Location Name', 'Location'])
+    const category    = get(['Category'])
+    const bank        = get(['Bank'])
+    const coordinates = get(['Coordinates', 'Coords', 'Coordinate', 'GPS'])
+
+    const errors: string[] = []
+    if (!name)                                  errors.push('Name is required')
+    if (category && !VALID_CATEGORIES.has(category))
+      errors.push(`Invalid category "${category}" — use Planned, Operational or SSNIT Branch`)
+    if (bank && !VALID_BANKS.has(bank))
+      errors.push(`Invalid bank "${bank}"`)
+
+    let latitude: number | undefined
+    let longitude: number | undefined
+    if (!coordinates) {
+      errors.push('Coordinates are required')
+    } else {
+      const parts = coordinates.split(',').map(s => s.trim())
+      if (parts.length < 2) {
+        errors.push('Coordinates must be "latitude, longitude"')
+      } else {
+        const lat = parseFloat(parts[0])
+        const lng = parseFloat(parts[1])
+        if (isNaN(lat) || isNaN(lng)) errors.push('Coordinates could not be parsed')
+        else if (lat < -90 || lat > 90)   errors.push('Latitude out of range (-90 to 90)')
+        else if (lng < -180 || lng > 180) errors.push('Longitude out of range (-180 to 180)')
+        else { latitude = lat; longitude = lng }
+      }
+    }
+
+    return { name, category, bank, coordinates, errors, latitude, longitude }
+  })
+}
+
+interface ExcelUploadModalProps { onClose: () => void }
+
+function ExcelUploadModal({ onClose }: ExcelUploadModalProps) {
+  const [rows,       setRows]       = useState<UploadRow[] | null>(null)
+  const [fileName,   setFileName]   = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { mutateAsync: bulkAdd, isPending } = useBulkAddLocations()
+
+  function processFile(file: File) {
+    if (!file) return
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target?.result, { type: 'binary' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
+        setRows(parseUploadRows(raw))
+      } catch {
+        toast.error('Could not read the file. Make sure it is a valid .xlsx or .xls file.')
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) processFile(file)
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
+
+  async function handleImport() {
+    if (!rows) return
+    const valid = rows.filter(r => r.errors.length === 0)
+    if (!valid.length) return
+    try {
+      await bulkAdd(valid.map(r => ({
+        name:      r.name,
+        latitude:  r.latitude!,
+        longitude: r.longitude!,
+        category:  (r.category || null) as 'Planned' | 'Operational' | 'SSNIT Branch' | null,
+        bank:      (r.bank || null) as BankName | null,
+      })))
+      toast.success(`${valid.length} location${valid.length !== 1 ? 's' : ''} imported`)
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  const validCount   = rows?.filter(r => r.errors.length === 0).length ?? 0
+  const invalidCount = rows?.filter(r => r.errors.length > 0).length ?? 0
+
+  return (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl mx-4 bg-white rounded-xl border shadow-xl overflow-hidden flex flex-col" style={{ maxHeight: '85vh' }}>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+            <Upload size={15} className="text-brand" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-zinc-900">Upload Locations from Excel</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Required columns: Name, Category, Bank, Coordinates</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* Drop zone */}
+          {!rows ? (
+            <div className="p-5">
+              <div
+                onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={onDrop}
+                onClick={() => fileRef.current?.click()}
+                className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl cursor-pointer transition-colors py-12 ${isDragging ? 'border-brand bg-orange-50' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'}`}
+              >
+                <div className="w-12 h-12 rounded-xl bg-zinc-100 flex items-center justify-center">
+                  <FileSpreadsheet size={22} className="text-zinc-400" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-zinc-700">Drop your Excel file here</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">or click to browse — .xlsx and .xls supported</p>
+                </div>
+              </div>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onFileChange} />
+
+              {/* Format hint */}
+              <div className="mt-4 rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3">
+                <p className="text-xs font-semibold text-zinc-600 mb-2">Expected column headers</p>
+                <div className="flex flex-wrap gap-2">
+                  {['Name', 'Category', 'Bank', 'Coordinates'].map(col => (
+                    <span key={col} className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-white border border-zinc-200 text-xs font-medium text-zinc-700">{col}</span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-2">Coordinates should be "latitude, longitude" (e.g. 5.6037, -0.1870). Column headers are case-insensitive.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-5">
+              {/* File info + re-upload */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet size={15} className="text-zinc-400" />
+                  <span className="text-xs font-medium text-zinc-600">{fileName}</span>
+                  <span className="text-xs text-zinc-400">· {rows.length} row{rows.length !== 1 ? 's' : ''}</span>
+                </div>
+                <button
+                  onClick={() => { setRows(null); setFileName('') }}
+                  className="text-xs text-zinc-400 hover:text-zinc-600 underline underline-offset-2"
+                >
+                  Choose different file
+                </button>
+              </div>
+
+              {/* Summary badges */}
+              <div className="flex gap-2 mb-3">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-xs font-semibold text-green-700">
+                  <CheckCircle2 size={12} /> {validCount} valid
+                </span>
+                {invalidCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-600">
+                    <AlertCircle size={12} /> {invalidCount} will be skipped
+                  </span>
+                )}
+              </div>
+
+              {/* Preview table */}
+              <div className="rounded-lg border border-zinc-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-zinc-50 border-b border-zinc-200">
+                        <th className="text-left px-3 py-2 font-semibold text-zinc-500 uppercase tracking-wide text-[10px]">#</th>
+                        <th className="text-left px-3 py-2 font-semibold text-zinc-500 uppercase tracking-wide text-[10px]">Name</th>
+                        <th className="text-left px-3 py-2 font-semibold text-zinc-500 uppercase tracking-wide text-[10px]">Category</th>
+                        <th className="text-left px-3 py-2 font-semibold text-zinc-500 uppercase tracking-wide text-[10px]">Bank</th>
+                        <th className="text-left px-3 py-2 font-semibold text-zinc-500 uppercase tracking-wide text-[10px]">Coordinates</th>
+                        <th className="text-left px-3 py-2 font-semibold text-zinc-500 uppercase tracking-wide text-[10px]">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.slice(0, 100).map((row, i) => (
+                        <tr key={i} className={`border-b border-zinc-100 last:border-0 ${row.errors.length ? 'bg-red-50' : ''}`}>
+                          <td className="px-3 py-2 text-zinc-400">{i + 1}</td>
+                          <td className="px-3 py-2 font-medium text-zinc-800 max-w-[140px] truncate">{row.name || <span className="text-red-400 italic">empty</span>}</td>
+                          <td className="px-3 py-2 text-zinc-600">{row.category || <span className="text-zinc-300">—</span>}</td>
+                          <td className="px-3 py-2 text-zinc-600">{row.bank || <span className="text-zinc-300">—</span>}</td>
+                          <td className="px-3 py-2 text-zinc-500 max-w-[130px] truncate">{row.coordinates || <span className="text-zinc-300">—</span>}</td>
+                          <td className="px-3 py-2">
+                            {row.errors.length === 0 ? (
+                              <span className="inline-flex items-center gap-1 text-green-600 font-medium"><CheckCircle2 size={11} /> OK</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-red-500 font-medium" title={row.errors.join('\n')}>
+                                <AlertCircle size={11} /> {row.errors[0]}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {rows.length > 100 && (
+                    <p className="text-center text-xs text-zinc-400 py-2 border-t border-zinc-100">
+                      Showing first 100 of {rows.length} rows — all {validCount} valid rows will be imported
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {rows && (
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t bg-zinc-50 shrink-0">
+            <Button variant="outline" className="h-8 text-xs" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button
+              className="h-8 text-xs gap-1.5"
+              onClick={handleImport}
+              disabled={isPending || validCount === 0}
+            >
+              {isPending ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              {isPending ? 'Importing…' : `Import ${validCount} location${validCount !== 1 ? 's' : ''}`}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Export fields dialog ─────────────────────────────────────────────────────
 
 interface ExportFieldsModalProps {
@@ -884,6 +1155,7 @@ export function Colocation() {
   const [addOpen,       setAddOpen]       = useState(false)
   const [editTarget,    setEditTarget]    = useState<ColocationLocation | null>(null)
   const [exportOpen,    setExportOpen]    = useState(false)
+  const [uploadOpen,    setUploadOpen]    = useState(false)
   const [isExporting,   setIsExporting]   = useState(false)
   const [showLabels,       setShowLabels]       = useState(false)
   const [showOperational,  setShowOperational]  = useState(true)
@@ -1064,9 +1336,13 @@ export function Colocation() {
               {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
               Export
             </Button>
+            <Button onClick={() => setUploadOpen(true)} variant="outline" className="gap-1.5 h-8 text-xs">
+              <Upload size={13} />
+              Upload
+            </Button>
             <Button onClick={() => setAddOpen(true)} className="gap-1.5 h-8 text-xs">
               <Plus size={13} />
-              Add New Location
+              Add
             </Button>
           </div>
         </div>
@@ -1241,6 +1517,7 @@ export function Colocation() {
       {addOpen     && <LocationModal key="add"           onClose={() => setAddOpen(false)}    />}
       {editTarget  && <LocationModal key={editTarget.id} onClose={() => setEditTarget(null)} existing={editTarget} />}
       {exportOpen  && <ExportFieldsModal onClose={() => setExportOpen(false)} onExport={runExport} />}
+      {uploadOpen  && <ExcelUploadModal onClose={() => setUploadOpen(false)} />}
     </div>
   )
 }
