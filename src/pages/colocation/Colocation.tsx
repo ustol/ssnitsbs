@@ -890,6 +890,9 @@ export function Colocation() {
   const [showPlanned,      setShowPlanned]      = useState(true)
   const [showSsnitBranch,  setShowSsnitBranch]  = useState(true)
   const [search,      setSearch]      = useState('')
+  const [listShowOp,     setListShowOp]     = useState(true)
+  const [listShowPl,     setListShowPl]     = useState(true)
+  const [listShowSsnit,  setListShowSsnit]  = useState(true)
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
   const [selectedId,  setSelectedId]  = useState<string | null>(null)
 
@@ -908,11 +911,14 @@ export function Colocation() {
 
   const filteredLocations = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return locations
-    return locations.filter(loc =>
-      loc.name.toLowerCase().includes(q) || (loc.ssnit_branch ?? '').toLowerCase().includes(q),
-    )
-  }, [locations, search])
+    return locations.filter(loc => {
+      if (loc.category === 'Operational'  && !listShowOp)    return false
+      if (loc.category === 'SSNIT Branch' && !listShowSsnit) return false
+      if ((loc.category === 'Planned' || !loc.category) && !listShowPl) return false
+      if (!q) return true
+      return loc.name.toLowerCase().includes(q) || (loc.ssnit_branch ?? '').toLowerCase().includes(q)
+    })
+  }, [locations, search, listShowOp, listShowPl, listShowSsnit])
 
   const categoryCounts = useMemo(() => ({
     operational: locations.filter(l => l.category === 'Operational').length,
@@ -1043,7 +1049,7 @@ export function Colocation() {
             <p style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>
               {isLoading
                 ? 'Loading…'
-                : search
+                : filteredLocations.length < locations.length
                   ? `${filteredLocations.length} of ${locations.length} location${locations.length !== 1 ? 's' : ''}`
                   : `${locations.length} location${locations.length !== 1 ? 's' : ''}`}
             </p>
@@ -1065,9 +1071,9 @@ export function Colocation() {
           </div>
         </div>
 
-        {/* Search */}
-        <div style={{ padding: '0 16px 12px', borderBottom: '1px solid #e4e4e7', flexShrink: 0, background: '#fff' }}>
-          <div className="relative">
+        {/* Search + category filter */}
+        <div style={{ padding: '0 16px 10px', borderBottom: '1px solid #e4e4e7', flexShrink: 0, background: '#fff' }}>
+          <div className="relative mb-2">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
             <Input
               placeholder="Search locations or branches…"
@@ -1075,6 +1081,39 @@ export function Colocation() {
               onChange={e => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
             />
+          </div>
+          <div className="flex items-center gap-1.5">
+            {([
+              { label: 'Operational',   active: listShowOp,    set: setListShowOp,    bg: '#f4a234', activeBg: '#f4a234' },
+              { label: 'Planned',       active: listShowPl,    set: setListShowPl,    bg: '#4b5563', activeBg: '#4b5563' },
+              { label: 'SSNIT Branch',  active: listShowSsnit, set: setListShowSsnit, bg: '#3b82f6', activeBg: '#3b82f6' },
+            ] as const).map(({ label, active, set, bg }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => set(v => !v)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                  border: `1.5px solid ${active ? bg : '#e4e4e7'}`,
+                  background: active ? bg : '#fff',
+                  color: active ? '#fff' : '#71717a',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                {label}
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  background: active ? 'rgba(255,255,255,0.25)' : '#f4f4f5',
+                  color: active ? '#fff' : '#a1a1aa',
+                  borderRadius: 999, padding: '0 5px', lineHeight: '16px',
+                }}>
+                  {label === 'Operational' ? categoryCounts.operational
+                    : label === 'Planned'  ? categoryCounts.planned
+                    :                        categoryCounts.ssnit}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
