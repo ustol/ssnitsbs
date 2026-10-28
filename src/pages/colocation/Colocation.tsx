@@ -816,7 +816,7 @@ interface ExportFieldsModalProps {
 
 function ExportFieldsModal({ onClose, onExport }: ExportFieldsModalProps) {
   const [checked, setChecked] = useState<Record<ExportFieldKey, boolean>>({
-    name: true, ssnit_branch: true, category: true, coordinates: true, commencement_date: true,
+    name: true, ssnit_branch: true, category: true, bank: true, coordinates: true, commencement_date: true,
   })
 
   function toggle(key: ExportFieldKey) {
@@ -1060,6 +1060,7 @@ const EXPORT_FIELD_DEFS = [
   { key: 'name',               label: 'Location Name' },
   { key: 'ssnit_branch',       label: 'SSNIT Branch' },
   { key: 'category',           label: 'Category' },
+  { key: 'bank',               label: 'Bank' },
   { key: 'coordinates',        label: 'Coordinates' },
   { key: 'commencement_date',  label: 'Commencement Date' },
 ] as const
@@ -1071,8 +1072,12 @@ async function exportColocationPdf(locations: ColocationLocation[], map: any, op
   const { showLabels, focusedFeature, fields } = opts
   const isRegionMode = !!focusedFeature
 
-  // Caller pre-filters to exactly the visible set; use as-is
-  const exportLocations = locations
+  // Sort: non-Rural/Community Bank rows first, Rural/Community Bank last
+  const exportLocations = [...locations].sort((a, b) => {
+    const aRural = a.bank === 'Rural/Community Bank' ? 1 : 0
+    const bRural = b.bank === 'Rural/Community Bank' ? 1 : 0
+    return aRural - bRural
+  })
 
   // Try common GeoJSON property names for the region label
   const regionName: string = isRegionMode
@@ -1102,6 +1107,7 @@ async function exportColocationPdf(locations: ColocationLocation[], map: any, op
     if (f.key === 'name')              return loc.name
     if (f.key === 'ssnit_branch')      return loc.ssnit_branch || '—'
     if (f.key === 'category')          return loc.category || '—'
+    if (f.key === 'bank')              return loc.bank || '—'
     if (f.key === 'coordinates')       return `${loc.latitude}, ${loc.longitude}`
     if (f.key === 'commencement_date') return formatCommencementDate(loc.commencement_date)
     return '—'
