@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2, Search, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react'
+import { Plus, X, MapPin, Pencil, Trash2, Loader2, Download, Share2, Search, Upload, AlertCircle, CheckCircle2, FileSpreadsheet, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -811,10 +811,11 @@ function ExcelUploadModal({ onClose }: ExcelUploadModalProps) {
 
 interface ExportFieldsModalProps {
   onClose: () => void
-  onExport: (fields: ExportFieldKey[]) => void
+  onExport: (fields: ExportFieldKey[], format: 'pdf' | 'word') => void
 }
 
 function ExportFieldsModal({ onClose, onExport }: ExportFieldsModalProps) {
+  const [format,  setFormat]  = useState<'pdf' | 'word'>('pdf')
   const [checked, setChecked] = useState<Record<ExportFieldKey, boolean>>({
     name: true, ssnit_branch: true, category: true, bank: true, coordinates: true, commencement_date: true,
   })
@@ -825,8 +826,8 @@ function ExportFieldsModal({ onClose, onExport }: ExportFieldsModalProps) {
 
   function handleExport() {
     const fields = EXPORT_FIELD_DEFS.map(f => f.key).filter(k => checked[k])
-    if (!fields.length) { return }
-    onExport(fields)
+    if (!fields.length) return
+    onExport(fields, format)
   }
 
   return (
@@ -838,15 +839,45 @@ function ExportFieldsModal({ onClose, onExport }: ExportFieldsModalProps) {
             <Download size={15} className="text-brand" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-zinc-900">Export to PDF</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Choose fields to include in the table</p>
+            <p className="text-sm font-semibold text-zinc-900">Export Locations</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Choose format and fields to include</p>
           </div>
           <button onClick={onClose} className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100">
             <X size={15} />
           </button>
         </div>
 
+        {/* Format toggle */}
+        <div className="px-5 pt-4 pb-3 border-b border-zinc-100">
+          <p className="text-xs font-medium text-zinc-500 mb-2">Format</p>
+          <div className="flex gap-2">
+            {(['pdf', 'word'] as const).map(fmt => (
+              <button
+                key={fmt}
+                type="button"
+                onClick={() => setFormat(fmt)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                  format === fmt
+                    ? 'border-brand bg-orange-50 text-brand'
+                    : 'border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50'
+                }`}
+              >
+                {fmt === 'pdf' ? <Download size={13} /> : <FileText size={13} />}
+                {fmt === 'pdf' ? 'PDF' : 'Word (.docx)'}
+              </button>
+            ))}
+          </div>
+          {format === 'pdf' && (
+            <p className="text-[11px] text-zinc-400 mt-2">Includes a map image on the second page</p>
+          )}
+          {format === 'word' && (
+            <p className="text-[11px] text-zinc-400 mt-2">Table only — map image not included</p>
+          )}
+        </div>
+
+        {/* Field checkboxes */}
         <div className="px-5 py-4 space-y-2.5">
+          <p className="text-xs font-medium text-zinc-500 mb-1">Fields to include</p>
           {EXPORT_FIELD_DEFS.map(f => (
             <label key={f.key} className="flex items-center gap-3 cursor-pointer select-none group">
               <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked[f.key] ? 'bg-brand border-brand' : 'border-zinc-300 group-hover:border-zinc-400'}`}
@@ -869,7 +900,8 @@ function ExportFieldsModal({ onClose, onExport }: ExportFieldsModalProps) {
             onClick={handleExport}
             disabled={!Object.values(checked).some(Boolean)}
           >
-            <Download size={13} /> Export PDF
+            {format === 'pdf' ? <Download size={13} /> : <FileText size={13} />}
+            Export {format === 'pdf' ? 'PDF' : 'Word'}
           </Button>
         </div>
       </div>
@@ -1068,6 +1100,93 @@ type ExportFieldKey = typeof EXPORT_FIELD_DEFS[number]['key']
 
 interface ExportOpts { showLabels: boolean; focusedFeature: any | null; fields: ExportFieldKey[] }
 
+function getCellValue(loc: ColocationLocation, key: ExportFieldKey): string {
+  if (key === 'name')              return loc.name
+  if (key === 'ssnit_branch')      return loc.ssnit_branch || '—'
+  if (key === 'category')          return loc.category || '—'
+  if (key === 'bank')              return loc.bank || '—'
+  if (key === 'coordinates')       return `${loc.latitude}, ${loc.longitude}`
+  if (key === 'commencement_date') return formatCommencementDate(loc.commencement_date)
+  return '—'
+}
+
+async function exportColocationWord(
+  locations: ColocationLocation[],
+  opts: { focusedFeature: any | null; fields: ExportFieldKey[] },
+) {
+  const {
+    Document, Packer, Paragraph, Table, TableRow, TableCell,
+    TextRun, HeadingLevel, WidthType, AlignmentType,
+  } = await import('docx')
+
+  const { focusedFeature, fields } = opts
+  const isRegionMode = !!focusedFeature
+  const regionName: string = isRegionMode
+    ? (focusedFeature?.properties?.NAME_1 || focusedFeature?.properties?.name ||
+       focusedFeature?.properties?.region  || 'Selected Region')
+    : ''
+  const dateStr  = new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' })
+  const activeFields = EXPORT_FIELD_DEFS.filter(f => fields.includes(f.key))
+
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: activeFields.map(f =>
+      new TableCell({
+        shading: { fill: 'E8621A' },
+        children: [new Paragraph({
+          alignment: AlignmentType.LEFT,
+          children: [new TextRun({ text: f.label, bold: true, color: 'FFFFFF', size: 20 })],
+        })],
+      }),
+    ),
+  })
+
+  const dataRows = locations.map((loc, i) =>
+    new TableRow({
+      children: activeFields.map(f =>
+        new TableCell({
+          shading: i % 2 === 1 ? { fill: 'FAFAFA' } : undefined,
+          children: [new Paragraph({
+            children: [new TextRun({ text: getCellValue(loc, f.key), size: 18 })],
+          })],
+        }),
+      ),
+    }),
+  )
+
+  const doc = new Document({
+    sections: [{
+      children: [
+        new Paragraph({
+          text: isRegionMode ? `Colocation — ${regionName}` : 'Colocation Locations',
+          heading: HeadingLevel.HEADING_1,
+        }),
+        new Paragraph({
+          spacing: { after: 200 },
+          children: [new TextRun({
+            text: `Generated: ${dateStr}   ·   ${locations.length} location${locations.length !== 1 ? 's' : ''}`,
+            color: '71717A', size: 16,
+          })],
+        }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [headerRow, ...dataRows],
+        }),
+      ],
+    }],
+  })
+
+  const blob = await Packer.toBlob(doc)
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  const stamp = new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
+  const slug  = isRegionMode ? regionName.toLowerCase().replace(/\s+/g, '-') : 'locations'
+  a.download  = `colocation-${slug} — ${stamp}.docx`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 async function exportColocationPdf(locations: ColocationLocation[], map: any, opts: ExportOpts) {
   const { showLabels, focusedFeature, fields } = opts
   const isRegionMode = !!focusedFeature
@@ -1103,15 +1222,7 @@ async function exportColocationPdf(locations: ColocationLocation[], map: any, op
 
   const activeFields = EXPORT_FIELD_DEFS.filter(f => fields.includes(f.key))
   const head = [activeFields.map(f => f.label)]
-  const body = exportLocations.map(loc => activeFields.map(f => {
-    if (f.key === 'name')              return loc.name
-    if (f.key === 'ssnit_branch')      return loc.ssnit_branch || '—'
-    if (f.key === 'category')          return loc.category || '—'
-    if (f.key === 'bank')              return loc.bank || '—'
-    if (f.key === 'coordinates')       return `${loc.latitude}, ${loc.longitude}`
-    if (f.key === 'commencement_date') return formatCommencementDate(loc.commencement_date)
-    return '—'
-  }))
+  const body = exportLocations.map(loc => activeFields.map(f => getCellValue(loc, f.key)))
 
   autoTable(doc, {
     startY: 31,
@@ -1214,7 +1325,7 @@ export function Colocation() {
     setExportOpen(true)
   }
 
-  async function runExport(fields: ExportFieldKey[]) {
+  async function runExport(fields: ExportFieldKey[], format: 'pdf' | 'word') {
     setExportOpen(false)
     setIsExporting(true)
     try {
@@ -1229,13 +1340,15 @@ export function Colocation() {
         return true
       })
 
-      await exportColocationPdf(visibleLocations, mapHandleRef.current?.getMap(), {
-        showLabels,
-        focusedFeature,
-        fields,
-      })
+      if (format === 'word') {
+        await exportColocationWord(visibleLocations, { focusedFeature, fields })
+      } else {
+        await exportColocationPdf(visibleLocations, mapHandleRef.current?.getMap(), {
+          showLabels, focusedFeature, fields,
+        })
+      }
     } catch (err) {
-      toast.error((err as Error).message || 'Failed to export PDF')
+      toast.error((err as Error).message || 'Failed to export')
     } finally {
       setIsExporting(false)
     }
